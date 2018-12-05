@@ -10,15 +10,6 @@ class DataAnalyzer():
         for item in data.values():
             self.data_values.append(float(item))
 
-    #Нормализация данных
-    def convert_data(self):
-        converted_data = {}
-
-        for elem in self.data.keys():
-            converted_data[elem.toMSecsSinceEpoch()] = float(self.data.get(elem))
-
-        return converted_data
-
     def fft(self):
         # Количество измерений
         N = len(self.data_values)

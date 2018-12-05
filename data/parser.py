@@ -32,14 +32,12 @@ class DataParser:
 
         self.__data_headers = data_headers_dict["base_headers"] + data_headers_dict[self.param_name]
 
-        # Разобьем ответ по времени (на строки)
-        #data_lines = self.__data.split('\n')
-
         temp_data = list()
         # Разобьем каждую линию по частям
         for data_line in self.__data:
             data_line_arr = data_line.split(';')
             data_line_arr[0] = QDateTime.fromString(data_line_arr[0][:-3], "yyyy-MM-dd HH:mm:ss")
+
             temp_data.append(data_line_arr)
 
         parsed_data = sorted(temp_data, key=itemgetter(0))
@@ -72,7 +70,6 @@ class DataParser:
 
         return column_data
 
-    #Экспорт в файл
     def export_to_file(self, filename):
         with open(filename, 'w+') as file:
             file.write(self.rus_param_name + '\n')
@@ -95,3 +92,4 @@ class DataParser:
 
             self.__data = data_lines[4:]
             self.__parsed_data = self.__parse()
+            

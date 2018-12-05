@@ -1,5 +1,5 @@
 import requests
-from data.dictionaries import *
+
 
 def get_detectors_sn(id, station_id):
     if id == "liquidPrecipitation":

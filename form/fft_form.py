@@ -1,8 +1,9 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QListWidget, QGroupBox, QLabel
-from PyQt5.QtChart import QLineSeries, QDateTimeAxis, QValueAxis, QChart
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QGroupBox, QLabel
+from PyQt5.QtChart import QLineSeries, QValueAxis, QChart
 from PyQt5.QtCore import Qt
 
 from modules.ChartView import ChartView
+
 
 class FftDialog(QDialog):
 
@@ -37,7 +38,6 @@ class FftDialog(QDialog):
         self.setLayout(layout)
 
     def build_plot(self, data):
-        #Строим график
         lineSeries = QLineSeries()
         lineSeries.setPointsVisible(True)
 

@@ -11,6 +11,11 @@ from data.imces import build_url, load_data, get_detectors_sn
 from data.dictionaries import *
 from data.parser import DataParser
 
+'''
+TODO
+1. Рефакторинг по графикам
+2. Общий рефакторинг
+'''
 
 class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
     def __init__(self):

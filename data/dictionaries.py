@@ -25,10 +25,6 @@ id_dict = {
     "soilHumidity": "idd_vlp"  # Влажность почвы
 }
 
-#Начальное время
-
-#Конечное время
-
 station_dict = {
     "liquidPrecipitation": [5],
     "profileTemperature": [5, 8, 9],
