@@ -1,9 +1,6 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QGroupBox, QLabel
-from PyQt5.QtChart import QLineSeries, QValueAxis, QChart
-from PyQt5.QtCore import Qt
 
 from modules.ChartView import ChartView
-from modules.DataAnalyzer import DataAnalyzer
 
 
 class FftDialog(QDialog):

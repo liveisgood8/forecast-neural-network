@@ -1,7 +1,6 @@
 from PyQt5.QtWidgets import QDialog, QGridLayout, QVBoxLayout, QLabel, QComboBox, QGroupBox
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMenuBar, QAction, QMessageBox, QPushButton, QFileDialog
-from PyQt5.QtChart import QLineSeries, QDateTimeAxis, QValueAxis, QChart
+from PyQt5.QtWidgets import QMenuBar, QAction, QPushButton, QFileDialog
 
 from data.parser import DataParser
 from modules.ChartView import ChartView
