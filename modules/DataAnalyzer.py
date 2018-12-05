@@ -22,13 +22,13 @@ class DataAnalyzer():
 
         yff = 2.0 / N * np.abs(yf[0:N // 2])
 
-        return xf[1:], yff[1:]
+        return xf[1:], yff[1:], yf[1:]
 
     def get_time_delta_of_measure(self):
         keys = list(self.data.keys())
         return keys[0].secsTo(keys[1])
 
-    def nextpow2(i):
+    def nextpow2(self, i):
         n = 1
         while n < i: n *= 2
         return n

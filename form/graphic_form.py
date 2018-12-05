@@ -150,8 +150,7 @@ class GraphicWindow(QDialog):
         self.param_label_container['Размах'].setText(str(self.data_analyzer.min_max_delta()))
 
     def fft_build_plot_clicked(self):
-        fft_dlg = FftDialog(self)
-        fft_dlg.build_plot(self.data_analyzer.fft())
+        fft_dlg = FftDialog(self.data_analyzer.fft())
         fft_dlg.exec()
 
     def neural_button_click(self):
