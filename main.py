@@ -12,9 +12,11 @@ from data.dictionaries import *
 from data.parser import DataParser
 
 '''
-TODO
-1. Рефакторинг по графикам
-2. Общий рефакторинг
+================================================================
+TODO:
+
+1. Перевести parser на pandas
+================================================================
 '''
 
 class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
@@ -43,11 +45,8 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
     #Получение данных
     #Формат даты и времени: 2018-04-10T16:31:00+07
     def get_data_btn_clicked(self):
-        q_start_datetime = self.startDateControl.dateTime().addSecs(7*60*60)
-        start_datetime_str = q_start_datetime.toString("yyyy-MM-ddThh:mm:ss+07")
-
-        q_end_datetime = self.endDateControl.dateTime().addSecs(7*60*60)
-        end_datetime_str = q_end_datetime.toString("yyyy-MM-ddThh:mm:ss+07")
+        q_start_datetime, start_datetime_str = self.make_datetime(self.startDateControl.dateTime())
+        q_end_datetime, end_datetime_str = self.make_datetime(self.endDateControl.dateTime())
 
         param_name = rus_to_id_dict[self.paramCombo.currentText()]
         param_id = id_dict[param_name]
@@ -67,25 +66,14 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
 
         #Если таких данные нет, покажем предупреждение
         if dataparser.is_data_empty():
-            msg = QtWidgets.QMessageBox()
-            msg.setIcon(QtWidgets.QMessageBox.Critical)
-            msg.setText('Данных за указанный интервал времени не найдено!')
-            msg.setWindowTitle('Внимание')
-            msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
-
-            msg.exec()
+            self.show_msgbox('Данных за указанный интервал времени не найдено!', True)
         else:
             #Проверим диапазон дат и если он различный, то выведем предупреждение
             (is_date_diff, orig_start_date_str, orig_end_date_str) = dataparser.compare_date(q_start_datetime, q_end_datetime)
             if is_date_diff:
-                msg = QtWidgets.QMessageBox()
-                msg.setIcon(QtWidgets.QMessageBox.Information)
-                msg.setText('Доступный временной интервал отличается от заданого!\n' +
-                            'Данные будут отображены за следующий интервал:\n' +
-                            orig_start_date_str + ' - ' + orig_end_date_str)
-                msg.setWindowTitle('Внимание')
-                msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
-                msg.exec()
+                self.show_msgbox('Доступный временной интервал отличается от заданого!\n'
+                                 + 'Данные будут отображены за следующий интервал:\n'
+                                 + orig_start_date_str + ' - ' + orig_end_date_str)
 
             graphic_wnd = GraphicWindow(dataparser, self)
             graphic_wnd.exec()
@@ -110,6 +98,27 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
         if stationComboText != '':
             for detectorName in get_detectors_sn(param_name, int(stationComboText)):
                 self.detectorCombo.addItem(detectorName)
+
+    #Convert DateTime by timezone and to string
+    def make_datetime(self, datetime):
+        q_datetime = datetime.addSecs(7*60*60)
+        datetime_str = q_datetime.toString("yyyy-MM-ddThh:mm:ss+07")
+
+        return q_datetime, datetime_str
+
+    def show_msgbox(self, text, error=False):
+        msg = QtWidgets.QMessageBox()
+
+        if not error:
+            msg.setIcon(QtWidgets.QMessageBox.Information)
+            msg.setWindowTitle('Внимание')
+        else:
+            msg.setIcon(QtWidgets.QMessageBox.Critical)
+            msg.setWindowTitle('Ошибка')
+
+        msg.setText(text)
+        msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg.exec()
 
     def import_data(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file')
