@@ -10,6 +10,17 @@ class DataAnalyzer():
         for item in data.values():
             self.data_values.append(float(item))
 
+    #Преобразование данных для построения графика
+    def convert_data(self):
+        x = list()
+        y = list()
+
+        for elem in self.data.keys():
+            x.append(elem.toMSecsSinceEpoch())
+            y.append(float(self.data.get(elem)))
+
+        return x, y
+
     def fft(self):
         # Количество измерений
         N = len(self.data_values)

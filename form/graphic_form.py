@@ -6,7 +6,6 @@ from PyQt5.QtChart import QLineSeries, QDateTimeAxis, QValueAxis, QChart
 from data.parser import DataParser
 from modules.ChartView import ChartView
 from modules.DataAnalyzer import DataAnalyzer
-from modules.DataProcessing import DataProcessing
 from form.fft_form import FftDialog
 from form.neural_network import NeuralNetworkDialog
 
@@ -19,7 +18,7 @@ class GraphicWindow(QDialog):
         self.setMinimumSize(1200, 800)
 
         self.parser = parser
-        self.data_analyzer = DataProcessing()
+        self.data_analyzer = DataAnalyzer()
 
         self.chart_view = ChartView()
         self.chart_view.setMinimumSize(1000, 800)
