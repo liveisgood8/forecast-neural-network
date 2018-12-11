@@ -12,3 +12,7 @@ numpy
 scipy
 
 requests
+
+pandas
+
+openpyxl
