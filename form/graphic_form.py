@@ -159,5 +159,5 @@ class GraphicWindow(QDialog):
         file_name = QFileDialog.getSaveFileName(self, 'Save file', None, "All Files (*)")
 
         if file_name[0]:
-            self.parser.export_to_file(file_name[0])
+            self.parser.export(file_name[0])
 

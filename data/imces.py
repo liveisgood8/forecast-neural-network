@@ -1,4 +1,9 @@
 import requests
+import pandas
+
+from io import StringIO
+
+from data.dictionaries import *
 
 
 def get_detectors_sn(id, station_id):
@@ -86,8 +91,9 @@ def load_data(url):
     response = requests.get(url)
 
     data = response.content.decode("utf-8")[:-2]
+
     if not data:
         return None
     else:
-        return data.split('\n')
+        return data
 

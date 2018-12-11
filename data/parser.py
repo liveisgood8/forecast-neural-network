@@ -1,3 +1,7 @@
+import pandas
+import os
+from io import StringIO
+
 from PyQt5.QtCore import QDateTime
 from operator import itemgetter
 
@@ -20,7 +24,7 @@ class DataParser:
         self.__detector = detector
 
     def is_data_empty(self):
-        if not self.__parsed_data:
+        if self.__parsed_data.empty:
             return True
         else:
             return False
@@ -30,55 +34,55 @@ class DataParser:
         if not self.__data:
             return None
 
-        self.__data_headers = data_headers_dict["base_headers"] + data_headers_dict[self.param_name]
+        data_stream = StringIO(self.__data)
+        parsed_data = pandas.read_csv(data_stream, names=data_headers_dict["base_headers"] + data_headers_dict[self.param_name],
+                              sep=';', index_col=False)
 
-        temp_data = list()
-        # Разобьем каждую линию по частям
-        for data_line in self.__data:
-            data_line_arr = data_line.split(';')
-            data_line_arr[0] = QDateTime.fromString(data_line_arr[0][:-3], "yyyy-MM-dd HH:mm:ss")
-
-            temp_data.append(data_line_arr)
-
-        parsed_data = sorted(temp_data, key=itemgetter(0))
+        parsed_data['Время измерения'] = self.convert_str_to_qdatetime(parsed_data['Время измерения'])
+        parsed_data = parsed_data.sort_values('Время измерения')
 
         return parsed_data
 
     def compare_date(self, start_date, end_date):
         is_date_different = False
-        if start_date != self.__parsed_data[0][0]:
-            start_date = self.__parsed_data[0][0]
+        if start_date != self.__parsed_data.ix[:,0].iloc[0]:
+            start_date = self.__parsed_data.ix[:,0].iloc[0]
             is_date_different = True
-        if end_date != self.__parsed_data[-1][0]:
-            end_date = self.__parsed_data[-1][0]
+        if end_date != self.__parsed_data.ix[:,0].iloc[-1]:
+            end_date = self.__parsed_data.ix[:,0].iloc[-1]
             is_date_different = True
 
         return (is_date_different, start_date.toString('dd.MM.yyyy HH:mm:ss'), end_date.toString('dd.MM.yyyy HH:mm:ss'))
+
+    def convert_str_to_qdatetime(self, column_values):
+        datetime_list = list()
+        for elem in column_values:
+            datetime_list.append(QDateTime.fromString(elem[:-3], "yyyy-MM-dd HH:mm:ss"))
+        return datetime_list
+
+    def convert_qdatetime_to_str(self, column_values):
+        datetime_list = list()
+        for elem in column_values:
+            datetime_list.append(elem.toString("yyyy-MM-dd HH:mm:ss"))
+        return datetime_list
 
     def get_headers(self):
         return data_headers_dict[self.param_name]
 
     def get_column(self, column_header):
-        column_index = self.__data_headers.index(column_header)
-        column_data = {}
+        return self.__parsed_data[['Время измерения', column_header]]
 
-        if self.__parsed_data == None:
-            return None
+    def export(self, filename):
+        self.__parsed_data['Время измерения'] = self.convert_qdatetime_to_str(self.__parsed_data['Время измерения'])
 
-        for data_line in self.__parsed_data:
-            column_data[data_line[0]] = data_line[column_index]
+        extension = os.path.splitext(filename)[1]
+        if extension == '.xlsx':
+            self.__parsed_data.to_excel(filename)
+        elif extension == '.csv':
+            self.__parsed_data.to_csv(filename, sep=';')
 
-        return column_data
+        self.__parsed_data['Время измерения'] = self.convert_str_to_qdatetime(self.__parsed_data['Время измерения'])
 
-    def export_to_file(self, filename):
-        with open(filename, 'w+') as file:
-            file.write(self.rus_param_name + '\n')
-            file.write(self.param_name + '\n')
-            file.write(str(self.__station) + '\n')
-            file.write(self.__detector + '\n')
-
-            for d_line in self.__data:
-                file.write(d_line + '\n')
 
     def import_from_file(self, filename):
         with open(filename, 'r+') as file:

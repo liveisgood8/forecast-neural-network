@@ -59,15 +59,15 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
         data = load_data(urlfinal)
         QGuiApplication.setOverrideCursor(Qt.ArrowCursor)
 
-        dataparser = DataParser(self.paramCombo.currentText(), param_name)
-        dataparser.set_station(station_id)
-        dataparser.set_detector(detector_sn)
-        dataparser.set_data(data)
-
         #Если таких данные нет, покажем предупреждение
-        if dataparser.is_data_empty():
+        if data == None:
             self.show_msgbox('Данных за указанный интервал времени не найдено!', True)
         else:
+            dataparser = DataParser(self.paramCombo.currentText(), param_name)
+            dataparser.set_station(station_id)
+            dataparser.set_detector(detector_sn)
+            dataparser.set_data(data)
+
             #Проверим диапазон дат и если он различный, то выведем предупреждение
             (is_date_diff, orig_start_date_str, orig_end_date_str) = dataparser.compare_date(q_start_datetime, q_end_datetime)
             if is_date_diff:
@@ -77,6 +77,7 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
 
             graphic_wnd = GraphicWindow(dataparser, self)
             graphic_wnd.exec()
+
 
     #Функции для заполнения чекбоксов
     def fill_params(self):

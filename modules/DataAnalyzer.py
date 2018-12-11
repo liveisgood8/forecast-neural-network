@@ -1,23 +1,23 @@
 import numpy as np
+import pandas
+
 import scipy.stats as scistats
 import scipy.fftpack as scifft
 
 class DataAnalyzer():
-    def set_data(self, data):
+    def set_data(self, data: pandas.DataFrame):
+        print(data)
         self.data = data
-
-        self.data_values = list()
-        for item in data.values():
-            self.data_values.append(float(item))
+        self.data_values = data.iloc[:,1]
 
     #Преобразование данных для построения графика
     def convert_data(self):
         x = list()
         y = list()
 
-        for elem in self.data.keys():
-            x.append(elem.toMSecsSinceEpoch())
-            y.append(float(self.data.get(elem)))
+        for index, row in self.data.iterrows():
+            x.append(row.iloc[0].toMSecsSinceEpoch())
+            y.append(float(row.iloc[1]))
 
         return x, y
 
@@ -36,13 +36,7 @@ class DataAnalyzer():
         return xf[1:], yff[1:], yf[1:]
 
     def get_time_delta_of_measure(self):
-        keys = list(self.data.keys())
-        return keys[0].secsTo(keys[1])
-
-    def nextpow2(self, i):
-        n = 1
-        while n < i: n *= 2
-        return n
+        return self.data.iloc[:,0][0].secsTo(self.data.iloc[:,0][1]);
 
     def min(self):
         return np.amin(self.data_values)
