@@ -7,11 +7,12 @@ from modules.ChartView import ChartView
 from modules.DataAnalyzer import DataAnalyzer
 from form.fft_form import FftDialog
 from form.neural_network import NeuralNetworkDialog
+from form import messages
 
 
 class GraphicWindow(QDialog):
 
-    def __init__(self, parser : DataParser, parent=None):
+    def __init__(self, parser: DataParser, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Окно графиков')
         self.setMinimumSize(1200, 800)
@@ -42,6 +43,17 @@ class GraphicWindow(QDialog):
         neural_button.setText('Окно обучения нейронной сети')
         neural_button.clicked.connect(self.neural_button_click)
 
+        #layout - groupbox for measure info (station id, detector SN)
+        measure_info_layout = QVBoxLayout()
+        station_lb = QLabel('Номер станции: ' + str(parser.station))
+        sn_lb = QLabel('Серийный номер датчика:' + parser.detector)
+        measure_info_layout.addWidget(station_lb)
+        measure_info_layout.addWidget(sn_lb)
+
+        group_box_info = QGroupBox()
+        group_box_info.setTitle('Основная информация об измерении')
+        group_box_info.setLayout(measure_info_layout)
+
         #layout - group box for settings plot widgets
         plot_controls_layout = QVBoxLayout()
         plot_controls_layout.addWidget(self.combo_headers, 0, Qt.AlignTop)
@@ -70,6 +82,7 @@ class GraphicWindow(QDialog):
 
         #layout - для всех настроек
         all_param_layout = QVBoxLayout()
+        all_param_layout.addWidget(group_box_info)
         all_param_layout.addWidget(group_box_plot)
         all_param_layout.addWidget(group_box_param)
 
@@ -156,8 +169,12 @@ class GraphicWindow(QDialog):
         nn_dlg.exec()
 
     def export_data(self):
-        file_name = QFileDialog.getSaveFileName(self, 'Save file', None, "All Files (*)")
+        file_name = QFileDialog.getSaveFileName(self, 'Save file', None, "CSV (*.csv);;Excel (*.xlsx)")[0]
+        if file_name:
+            export_result = self.parser.export(file_name)
+            if export_result == 0:
+                messages.show_msgbox('Расширение файла для экспорта не указано, экспорт отменен!')
+            elif export_result == -1:
+                messages.show_msgbox('Указано неподдерживаемое расширение файла для экспорта, экспорт отменен!')
 
-        if file_name[0]:
-            self.parser.export(file_name[0])
 

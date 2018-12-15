@@ -6,7 +6,6 @@ import scipy.fftpack as scifft
 
 class DataAnalyzer():
     def set_data(self, data: pandas.DataFrame):
-        print(data)
         self.data = data
         self.data_values = data.iloc[:,1]
 
