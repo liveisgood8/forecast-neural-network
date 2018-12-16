@@ -1,3 +1,5 @@
+import os
+
 from PyQt5.QtChart import QChartView, QChart, QLineSeries, QDateTimeAxis, QValueAxis
 from PyQt5.Qt import *
 
@@ -50,13 +52,12 @@ class ChartView(QChartView):
     def save_plot(self):
         pixmap = self.grab()
 
-        pixmap.save("Plot.png", "PNG")
+        pixmap_name = QFileDialog.getSaveFileName(self, 'Сохранение графика', None, "PNG (*.png);;JPG (*.jpg);;BMP (*.bmp)")[0]
 
-        message = QMessageBox()
-        message.setWindowTitle('Внимание')
-        message.setIcon(QMessageBox.Information)
-        message.setText('График успешно сохранен!')
-        message.exec()
+        if not pixmap_name:
+            return
+
+        pixmap.save(pixmap_name, os.path.splitext(pixmap_name)[1][1:])
 
     def build_plot(self, data, title, y_name, x_name=None, set_x_time_scaled=False, y_min=None, y_max=None):
         chart = QChart()
@@ -78,13 +79,12 @@ class ChartView(QChartView):
             axis_x = QDateTimeAxis()
             axis_x.setFormat("yyyy-MM-dd HH:mm:ss");
             axis_x.setTitleText("Время")
-            axis_x.setLabelsAngle(-90)
         else:
             axis_x = QValueAxis()
             axis_x.setTitleText(x_name)
-            axis_x.setLabelsAngle(-60)
 
-        axis_x.setTickCount(20)
+        axis_x.setLabelsAngle(-90)
+        axis_x.setTickCount(30)
 
         axis_y = QValueAxis()
         axis_y.setTitleText(y_name)

@@ -21,16 +21,26 @@ class DataAnalyzer():
         return x, y
 
     def fft(self):
-        # Количество измерений
-        N = len(self.data_values)
+        # TEST SIGNAL
+        # Fs = 1000
+        # T = 1 / Fs
+        # N = 100
+        # t = np.arange(0, N) * T
+        #
+        # S = 2 * np.sin(2 * np.pi * 50 * t)
+        #
+        # yf = scifft.fft(S)
+        # yff = 2.0 / N * np.abs(yf[0:N // 2])
+        # xf = Fs * np.arange(0, N//2) / N
 
-        # Частота дискретизации
-        Fs = 1.0 / self.get_time_delta_of_measure()
+        #Info: https://www.mathworks.com/help/matlab/ref/fft.html
+
+        N = len(self.data_values) #Num of measures
+        Fs = 1 / self.get_time_delta_of_measure() #Sampling frequency - num of measures in 1 second
 
         yf = scifft.fft(self.data_values)
-        xf = np.linspace(0.0, 1.0 / (2.0 * Fs), N // 2)
-
         yff = 2.0 / N * np.abs(yf[0:N // 2])
+        xf = Fs * np.arange(0, N//2) / N
 
         return xf[1:], yff[1:], yf[1:]
 
