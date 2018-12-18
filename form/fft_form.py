@@ -1,3 +1,5 @@
+import numpy as np
+
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QGroupBox, QLabel
 
 from modules.ChartView import ChartView
@@ -19,7 +21,9 @@ class FftDialog(QDialog):
         fft_coef_list = QListWidget()
         fft_coef_label = QLabel('Коэффициенты фурье:')
         for elem in data[2]:
-            fft_coef_list.addItem(str(elem))
+            str_elem = str(elem).replace('(', '')
+            str_elem = str_elem.replace(')', '')
+            fft_coef_list.addItem(str_elem)
 
         #layout - groupBox for fft info
         group_box_layout = QVBoxLayout()

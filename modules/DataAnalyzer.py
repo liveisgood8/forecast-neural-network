@@ -42,7 +42,7 @@ class DataAnalyzer():
         yff = 2.0 / N * np.abs(yf[0:N // 2])
         xf = Fs * np.arange(0, N//2) / N
 
-        return xf[1:], yff[1:], yf[1:]
+        return xf[1:], yff[1:], yf[1:].round(5)
 
     def get_time_delta_of_measure(self):
         return self.data.iloc[:,0][0].secsTo(self.data.iloc[:,0][1]);

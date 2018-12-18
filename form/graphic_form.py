@@ -46,7 +46,7 @@ class GraphicWindow(QDialog):
         #layout - groupbox for measure info (station id, detector SN)
         measure_info_layout = QVBoxLayout()
         station_lb = QLabel('Номер станции: ' + str(parser.station))
-        sn_lb = QLabel('Серийный номер датчика:' + parser.detector)
+        sn_lb = QLabel('Серийный номер датчика: ' + parser.detector)
         measure_info_layout.addWidget(station_lb)
         measure_info_layout.addWidget(sn_lb)
 

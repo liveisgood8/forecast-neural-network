@@ -116,19 +116,22 @@ def read_description_file(filename):
 def import_data(filename):
     parsed_data = None
     status = 1
-    descr_read_status, param_name, rus_param_name, station, detector = read_description_file(filename)
-    if descr_read_status:
-        extension = os.path.splitext(filename)[1]
+    extension = os.path.splitext(filename)[1]
 
-        if extension == '.csv':
-            parsed_data = pandas.read_csv(filename, sep=';', index_col=False)
-        elif extension == '.xls' or extension == '.xlsx':
-            parsed_data = pandas.read_excel(filename, index_col=None)
+    if extension == '.csv' or extension == '.xls' or extension == '.xlsx':
+        descr_read_status, param_name, rus_param_name, station, detector = read_description_file(filename)
+        if descr_read_status:
+
+            if extension == '.csv':
+                parsed_data = pandas.read_csv(filename, sep=';', index_col=False)
+            elif extension == '.xls' or extension == '.xlsx':
+                parsed_data = pandas.read_excel(filename, index_col=None)
+
+            parsed_data['Время измерения'] = convert_str_to_qdatetime(parsed_data['Время измерения'])
         else:
-            status = -1
+            status = -2
 
-        parsed_data['Время измерения'] = convert_str_to_qdatetime(parsed_data['Время измерения'])
+        return status, parsed_data, param_name, rus_param_name, station, detector
     else:
-        status = -2
-
-    return status, parsed_data, param_name, rus_param_name, station, detector
+        status = -1
+        return status, None, None, None, None, None
