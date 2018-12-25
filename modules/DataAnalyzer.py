@@ -27,7 +27,7 @@ class DataAnalyzer():
         # N = 100
         # t = np.arange(0, N) * T
         #
-        # S = 2 * np.sin(2 * np.pi * 50 * t)
+        # S = 2 * np.sin(2 * np.pi * 50 * t) + 5 * np.sin(2 * np.pi * 70 * t)
         #
         # yf = scifft.fft(S)
         # yff = 2.0 / N * np.abs(yf[0:N // 2])
@@ -40,9 +40,10 @@ class DataAnalyzer():
 
         yf = scifft.fft(self.data_values)
         yff = 2.0 / N * np.abs(yf[0:N // 2])
+        yff_phase = np.angle(yf, deg=True)
         xf = Fs * np.arange(0, N//2) / N
 
-        return xf[1:], yff[1:], yf[1:].round(5)
+        return xf[1:], yff[1:], yff_phase[1:], yf[1:].round(5)
 
     def get_time_delta_of_measure(self):
         return self.data.iloc[:,0][0].secsTo(self.data.iloc[:,0][1]);
