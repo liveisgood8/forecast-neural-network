@@ -18,3 +18,13 @@ pandas
 openpyxl
 
 xlrd
+
+tensorflow
+
+scikit-learn
+
+pillow
+
+h5py
+
+keras
