@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QListWidget, QGroupBox, QLabel
 
+from modules import NNCore
 from modules.DataAnalyzer import DataAnalyzer
 
 class NeuralNetworkDialog(QDialog):
@@ -11,4 +12,5 @@ class NeuralNetworkDialog(QDialog):
 
         self.data_analyzer = data_analyzer
 
+        NNCore.nn_main(self.data_analyzer.data)
 
