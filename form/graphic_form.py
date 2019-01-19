@@ -7,7 +7,7 @@ from modules.ChartView import ChartView
 from modules.DataAnalyzer import DataAnalyzer
 from form.fft_form import FftDialog
 from form.neural_network import NeuralNetworkDialog
-from form import messages
+from modules import helper
 
 
 class GraphicWindow(QDialog):
@@ -173,8 +173,8 @@ class GraphicWindow(QDialog):
         if file_name:
             export_result = self.parser.export(file_name)
             if export_result == 0:
-                messages.show_msgbox('Расширение файла для экспорта не указано, экспорт отменен!')
+                helper.show_msgbox('Расширение файла для экспорта не указано, экспорт отменен!')
             elif export_result == -1:
-                messages.show_msgbox('Указано неподдерживаемое расширение файла для экспорта, экспорт отменен!')
+                helper.show_msgbox('Указано неподдерживаемое расширение файла для экспорта, экспорт отменен!')
 
 

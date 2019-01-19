@@ -5,7 +5,7 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QFileDialog
 
-from form import messages
+from modules import helper
 from form import form_design
 from form.graphic_form import GraphicWindow
 from data.imces import build_url, load_data, get_detectors_sn
@@ -61,7 +61,7 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
 
         #Если таких данные нет, покажем предупреждение
         if data == None:
-            messages.show_msgbox('Данных за указанный интервал времени не найдено!', True)
+            helper.show_msgbox('Данных за указанный интервал времени не найдено!', True)
         else:
             dataparser = DataParser(self.paramCombo.currentText(), param_name, station_id, detector_sn)
             dataparser.set_data(data)
@@ -69,9 +69,9 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
             #Проверим диапазон дат и если он различный, то выведем предупреждение
             (is_date_diff, orig_start_date_str, orig_end_date_str) = dataparser.compare_date(q_start_datetime, q_end_datetime)
             if is_date_diff:
-                messages.show_msgbox('Доступный временной интервал отличается от заданого!\n'
-                                 + 'Данные будут отображены за следующий интервал:\n'
-                                 + orig_start_date_str + ' - ' + orig_end_date_str)
+                helper.show_msgbox('Доступный временной интервал отличается от заданого!\n'
+                                   + 'Данные будут отображены за следующий интервал:\n'
+                                   + orig_start_date_str + ' - ' + orig_end_date_str)
 
             graphic_wnd = GraphicWindow(dataparser, self)
             graphic_wnd.exec()
@@ -113,9 +113,9 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
 
         import_status, parsed_data, param_name, rus_param_name, station, detector = import_data(fname)
         if import_status == -1:
-            messages.show_msgbox('Неподдерживаемый формат файла!')
+            helper.show_msgbox('Неподдерживаемый формат файла!')
         elif import_status == -2:
-            messages.show_msgbox('Не найден файл описания!')
+            helper.show_msgbox('Не найден файл описания!')
         elif import_status == 1:
             data_parser = DataParser(rus_param_name, param_name, station, detector, parsed_data)
             graphic_wnd = GraphicWindow(data_parser, self)
