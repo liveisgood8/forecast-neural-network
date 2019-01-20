@@ -6,9 +6,12 @@ from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
+from keras import backend as KerasBackend
 from math import sqrt
 from matplotlib import pyplot
 import numpy
+
+from PyQt5 import QtCore
 
 '''
 TODO
@@ -16,6 +19,12 @@ TODO
 Поэксперемнтировать с количеством элементов в пачке (batch size)
 Поэксперементировать с количествой нейронов (neurons)
 '''
+
+
+class Predictions:
+    values = None
+    rmse = 0
+
 
 class NeuralNetwork:
     def __init__(self, data, repeats, epoch, batch_size, lstm_neurons):
@@ -38,6 +47,8 @@ class NeuralNetwork:
 
         # transform the scale of the data
         self.scaler, self.train_scaled, self.test_scaled = self.scale(self.train, self.test)
+
+        KerasBackend.clear_session()
 
     # frame a sequence as a supervised learning problem
     @staticmethod
@@ -94,10 +105,11 @@ class NeuralNetwork:
         model.add(LSTM(self.lstm_neurons, batch_input_shape=(self.batch_size, X.shape[1], X.shape[2]), stateful=True))
         model.add(Dense(1))
         model.compile(loss='mean_squared_error', optimizer='adam')
+
         for i in range(self.epoch):
             model.fit(X, y, epochs=1, batch_size=self.batch_size, verbose=0, shuffle=False)
             model.reset_states()
-            iteration_callback()
+            iteration_callback(i)
         return model
 
     # make a one-step forecast
@@ -106,9 +118,15 @@ class NeuralNetwork:
         yhat = model.predict(X, batch_size=batch_size)
         return yhat[0, 0]
 
+    def make_multi_predictions(self, repeat_iterator_callback, epoch_iterator_callback):
+        for i in range(self.repeats):
+            model = self.fit_lstm(epoch_iterator_callback)
+
+            predictions = Predictions()
+            predictions.values, predictions.rmse = self.prediciotns_repeat(model)
+            repeat_iterator_callback(i, predictions)
+
     def prediciotns_repeat(self, lstm_model):
-        # fit the model
-        # lstm_model = self.fit_lstm(train_scaled, 1, 1000, 6)
 
         # # forecast the entire training dataset to build up state for forecasting - ???????
         # train_reshaped = self.train_scaled[:, 0].reshape(len(self.train_scaled), 1, 1)
@@ -127,23 +145,30 @@ class NeuralNetwork:
             # store forecast
             predictions.append(yhat)
             expected = self.raw_values[len(self.train) + i + 1]
-            print('Month=%d, Predicted=%f, Expected=%f' % (i + 1, yhat, expected))
+            # print('Month=%d, Predicted=%f, Expected=%f' % (i + 1, yhat, expected))
 
         # report performance
         rmse = sqrt(mean_squared_error(self.raw_values[-self.sv_len:].values.tolist(), predictions))
-        print('Test RMSE: %.3f' % rmse)
+        # print('Test RMSE: %.3f' % rmse)
 
         # line plot of observed vs predicted
-        pyplot.plot(raw_values[-sv_len:])
-        pyplot.plot(predictions)
-        pyplot.show()
+        # pyplot.plot(raw_values[-sv_len:])
+        # pyplot.plot(predictions)
+        # pyplot.show()
 
         return predictions, rmse
 
 
+class NeuralNetworkTeacher(QtCore.QThread):
+    signal_epoch = QtCore.pyqtSignal(int)
+    signal_repeat = QtCore.pyqtSignal(int, Predictions)
+    signal_complete = QtCore.pyqtSignal()
 
+    def __init__(self, neural_network: NeuralNetwork, parent=None):
+        super().__init__(parent)
+        self.neural_network = neural_network
 
-
-
-
-
+    def run(self):
+        self.neural_network.make_multi_predictions(lambda i, predictions: self.signal_repeat.emit(i, predictions),
+                                                   lambda i: self.signal_epoch.emit(i))
+        self.signal_complete.emit()
