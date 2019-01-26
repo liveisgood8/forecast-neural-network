@@ -1,10 +1,11 @@
-from multiprocessing import Pool
+import sys
 
 from PyQt5.QtWidgets import *
 
 from modules.helper import grid_add_label_widget, show_msgbox
 from modules.NNCore import NeuralNetwork, NeuralNetworkTeacher, Predictions
 from modules.DataAnalyzer import DataAnalyzer
+from modules.ChartView import ChartView
 
 
 class NeuralNetworkDialog(QDialog):
@@ -12,15 +13,16 @@ class NeuralNetworkDialog(QDialog):
     def __init__(self, data_analyzer : DataAnalyzer, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Окно настройки нейронной сети')
-        self.setFixedSize(500, 350)
+        self.setFixedSize(900, 600)
 
         self.data_analyzer = data_analyzer
         self.nn_teacher = None
+        self.predictions = list()
 
         ##NN settings section
         gb_settings = QGroupBox('Настройки нейронной сети')
         gb_settings_l = QGridLayout()
-        gb_settings_l.setColumnMinimumWidth(0, int(self.width() * 0.7))
+        # gb_settings_l.setColumnMinimumWidth(0, int(self.width() * 0.7))
         gb_settings.setLayout(gb_settings_l)
 
 
@@ -53,7 +55,7 @@ class NeuralNetworkDialog(QDialog):
         ##NN report settings
         gb_report = QGroupBox('Отчет о работе сети')
         gb_report_l = QGridLayout()
-        gb_report_l.setColumnMinimumWidth(0, int(self.width() * 0.7))
+        # gb_report_l.setColumnMinimumWidth(0, int(self.width() * 0.7))
         gb_report.setLayout(gb_report_l)
 
         #Current epoch
@@ -81,14 +83,27 @@ class NeuralNetworkDialog(QDialog):
         buttons_layout.addWidget(self.b_start)
 
 
+        self.chart_view = ChartView(True) #No margins enabled
+        self.chart_view.setFixedSize(500, 300)
+        self.chart_view.x_name = "Среднеквадратичное отклонение"
+        self.chart_view.y_name = "Повтор"
+        self.chart_view.x_tick_num = 1
+        self.chart_view.y_tick_num = 6
+        self.chart_view.x_label_angle = 0
+        self.chart_view.y_label_angle = 0
+        self.chart_view.build_plot(None, None)
+
+
         #Main layout
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(gb_settings)
-        main_layout.addWidget(gb_report)
-        main_layout.addLayout(buttons_layout)
+        main_layout = QGridLayout()
+        main_layout.addWidget(gb_settings, 0, 0)
+        main_layout.addWidget(gb_report, 1, 0)
+        main_layout.addWidget(self.chart_view, 0, 1)
+        main_layout.addLayout(buttons_layout, 2, 0, 1, 2)
         self.setLayout(main_layout)
 
     def nn_start_education(self):
+        self.chart_view.clean()
         self.set_cbuttons_state(False)
         self.set_spins_state(False)
 
@@ -97,10 +112,6 @@ class NeuralNetworkDialog(QDialog):
                            self.spin_epoch_num.value(),
                            self.spin_batch_size.value(),
                            self.spin_neuron_num.value())
-
-        # TODO Increment
-        # lstm_model = nn.fit_lstm(
-        #     lambda context=self: context.r_current_epoch.setText(str(int(context.r_current_epoch.toPlainText()) + 1)))
 
         self.nn_teacher = NeuralNetworkTeacher(nn, self)
         self.nn_teacher.signal_epoch.connect(self.increment_epoch)
@@ -124,6 +135,10 @@ class NeuralNetworkDialog(QDialog):
         self.r_current_repeat.setText(str(count + 1))
         print(predictions.rmse, predictions.values)
 
+        self.chart_view.series_append(count + 1, predictions.rmse, 1, self.get_min_rmse(),
+                                      True, predictions.rmse > self.get_max_rmse())
+        self.predictions.append(predictions)
+
     def teaching_complete(self):
         self.set_cbuttons_state(True)
         self.set_spins_state(True)
@@ -141,6 +156,25 @@ class NeuralNetworkDialog(QDialog):
     def set_cbuttons_state(self, state):
         self.b_start.setEnabled(state)
         self.b_stop.setEnabled(not state)
+
+    def get_max_rmse(self):
+        max_rmse = 0
+        for elem in self.predictions:
+            if elem.rmse > max_rmse:
+                max_rmse = elem.rmse
+
+        return max_rmse
+
+    def get_min_rmse(self):
+        if len(self.predictions) == 0:
+            return 0
+
+        min_rmse = sys.float_info.max
+        for elem in self.predictions:
+            if elem.rmse < min_rmse:
+                min_rmse = elem.rmse
+
+        return min_rmse
 
 
 

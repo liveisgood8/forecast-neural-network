@@ -61,11 +61,13 @@ class FftDialog(QDialog):
     def ampl_radio_toggled(self, state):
         if state:
             self.phase_radio.setChecked(False)
-            self.chart_view.build_plot(self.ampl_data, "Частотно-временой анализ", "Амплитуда", "Частота, Гц")
+            self.chart_view.prepare_axis("Амплитуда", "Частота, Гц")
+            self.chart_view.build_plot(self.ampl_data, "Частотно-временой анализ")
 
     def phase_radio_toggled(self, state):
         if state:
             self.ampl_radio.setChecked(False)
-            self.chart_view.build_plot(self.phase_data, "Частотно-временой анализ", "Фаза", "Частота, Гц")
+            self.chart_view.prepare_axis("Фаза", "Частота, Гц")
+            self.chart_view.build_plot(self.phase_data, "Частотно-временой анализ")
 
 

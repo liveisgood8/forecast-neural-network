@@ -21,6 +21,7 @@ class GraphicWindow(QDialog):
         self.data_analyzer = DataAnalyzer()
 
         self.chart_view = ChartView()
+        self.chart_view.x_time_scaled = True
         self.chart_view.setMinimumSize(1000, 800)
 
         # ================
@@ -143,10 +144,11 @@ class GraphicWindow(QDialog):
         #Конвертируем в удобный вид
         x, y = self.data_analyzer.convert_data()
 
+        self.chart_view.y_name = header_name
+        self.chart_view.y_min = float(self.data_analyzer.min() - 0.1)
+        self.chart_view.y_max = float(self.data_analyzer.max() + 0.1)
 
-        self.chart_view.build_plot((x, y), self.parser.rus_param_name, self.combo_headers.currentText(),
-                                   None, True,
-                                   float(self.data_analyzer.min() - 0.1), self.data_analyzer.max() + 0.1)
+        self.chart_view.build_plot((x, y), self.parser.rus_param_name)
 
         #Заполним параметры
         self.fill_params()
