@@ -26,6 +26,8 @@ class ChartView(QChartView):
         self.y_label_angle = 0
         self.y_min = None
         self.y_max = None
+        self.x_min = None
+        self.x_max = None
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MiddleButton:
@@ -80,19 +82,23 @@ class ChartView(QChartView):
             axis_x = QValueAxis()
             axis_x.setTitleText(self.x_name)
 
-        axis_y = QValueAxis()
+        if self.x_min:
+            axis_x.setMin(self.x_min)
+        if self.x_max:
+            axis_x.setMax(self.x_max)
 
         axis_x.setLabelsAngle(self.x_label_angle)
         axis_x.setTickCount(self.x_tick_num)
 
-        axis_y.setTitleText(self.y_name)
-
-        axis_y.setTickCount(self.y_tick_num)
-        axis_y.setLabelsAngle(self.y_label_angle)
+        axis_y = QValueAxis()
         if self.y_min:
             axis_y.setMin(self.y_min)
         if self.y_max:
             axis_y.setMax(self.y_max)
+
+        axis_y.setTitleText(self.y_name)
+        axis_y.setTickCount(self.y_tick_num)
+        axis_y.setLabelsAngle(self.y_label_angle)
 
         return axis_x, axis_y
 
@@ -128,13 +134,13 @@ class ChartView(QChartView):
         self.lineSeries.append(x, y)
 
         self.chart().axisX().setMin(x_min)
-        self.chart().axisY().setMin(y_min)
+        self.chart().axisY().setMin(y_min - 0.2)
 
         if x_range:
             self.chart().axisX().setMax(x)
 
         if y_range:
-            self.chart().axisY().setMax(y)
+            self.chart().axisY().setMax(y + 0.2)
 
     def clean(self):
         self.lineSeries.clear()

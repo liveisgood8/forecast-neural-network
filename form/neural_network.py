@@ -1,6 +1,8 @@
 import sys
 
 from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.Qt import *
 
 from modules.helper import grid_add_label_widget, show_msgbox
 from modules.NNCore import NeuralNetwork, NeuralNetworkTeacher, Predictions
@@ -83,22 +85,32 @@ class NeuralNetworkDialog(QDialog):
         buttons_layout.addWidget(self.b_start)
 
 
+        ##NN Report controls
         self.chart_view = ChartView(True) #No margins enabled
-        self.chart_view.setFixedSize(500, 300)
-        self.chart_view.x_name = "Среднеквадратичное отклонение"
-        self.chart_view.y_name = "Повтор"
-        self.chart_view.x_tick_num = 1
-        self.chart_view.y_tick_num = 6
+        self.chart_view.setFixedSize(450, 330)
+        self.chart_view.x_name = "Повтор"
+        self.chart_view.y_name = "Среднеквадратичное отклонение"
+        self.chart_view.x_tick_num = 10
+        self.chart_view.y_tick_num = 10
         self.chart_view.x_label_angle = 0
         self.chart_view.y_label_angle = 0
+        self.chart_view.x_min = 1
+        self.chart_view.x_max = 2
         self.chart_view.build_plot(None, None)
 
+        self.predictions_table = QTableWidget(self)
+        self.predictions_table.setColumnCount(2)
+        self.predictions_table.setHorizontalHeaderLabels(['RMSE', 'Предсказанные значения'])
+        self.predictions_table.horizontalHeader().setStretchLastSection(True)
+        self.predictions_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.predictions_table.cellDoubleClicked.connect(self.predictions_build_plot)
 
         #Main layout
         main_layout = QGridLayout()
         main_layout.addWidget(gb_settings, 0, 0)
         main_layout.addWidget(gb_report, 1, 0)
         main_layout.addWidget(self.chart_view, 0, 1)
+        main_layout.addWidget(self.predictions_table, 1, 1)
         main_layout.addLayout(buttons_layout, 2, 0, 1, 2)
         self.setLayout(main_layout)
 
@@ -120,24 +132,42 @@ class NeuralNetworkDialog(QDialog):
         self.nn_teacher.start()
 
     def nn_stop_education(self):
+        QGuiApplication.setOverrideCursor(Qt.WaitCursor)
         if self.nn_teacher:
-            self.nn_teacher.terminate()
-            if self.nn_teacher.wait(2000):
+            self.nn_teacher.tterminate()
+            if self.nn_teacher.wait(5000):
+                QGuiApplication.setOverrideCursor(Qt.ArrowCursor)
                 self.set_cbuttons_state(True)
                 self.set_spins_state(True)
             else:
+                QGuiApplication.setOverrideCursor(Qt.ArrowCursor)
                 show_msgbox('Ошибка при остановке обучения, перезапустите программу!', True)
 
     def increment_epoch(self, count):
         self.r_current_epoch.setText(str(count + 1))
 
-    def increment_repeats(self, count, predictions : Predictions):
-        self.r_current_repeat.setText(str(count + 1))
-        print(predictions.rmse, predictions.values)
+    def increment_repeats(self, count, predictions: Predictions):
+        if predictions.rmse != NeuralNetwork.RMSE_ABORTED_VALUE:
+            self.r_current_repeat.setText(str(count + 1))
 
-        self.chart_view.series_append(count + 1, predictions.rmse, 1, self.get_min_rmse(),
-                                      True, predictions.rmse > self.get_max_rmse())
-        self.predictions.append(predictions)
+            self.chart_view.series_append(count + 1, predictions.rmse, 1, self.get_min_rmse(),
+                                          True, predictions.rmse > self.get_max_rmse())
+            self.predictions.append(predictions)
+
+            #Add result in predictio_table
+            row_num = self.predictions_table.rowCount()
+            predictions_str = ', '.join(str(round(e, 4)) for e in predictions.values)
+            self.predictions_table.insertRow(row_num)
+
+            r_item = QTableWidgetItem(str(round(predictions.rmse, 4)))
+            p_item = QTableWidgetItem(predictions_str)
+            # r_item.setFlags(r_item.flags() ^ (~Qt.ItemIsEditable or Qt.ItemIsSelectable))
+            # p_item.setFlags(p_item.flags() ^ (~Qt.ItemIsEditable or Qt.ItemIsSelectable))
+            self.predictions_table.setItem(row_num, 0, r_item)
+            self.predictions_table.setItem(row_num, 1, p_item)
+
+    def predictions_build_plot(self, row, column):
+        print(self.predictions[row].values)
 
     def teaching_complete(self):
         self.set_cbuttons_state(True)

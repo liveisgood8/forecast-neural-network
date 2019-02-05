@@ -27,6 +27,9 @@ class Predictions:
 
 
 class NeuralNetwork:
+    m_terminate = False #Response for interupting prediction
+    RMSE_ABORTED_VALUE = -1
+
     def __init__(self, data, repeats, epoch, batch_size, lstm_neurons):
         self.repeats = repeats
         self.epoch = epoch
@@ -107,6 +110,9 @@ class NeuralNetwork:
         model.compile(loss='mean_squared_error', optimizer='adam')
 
         for i in range(self.epoch):
+            if self.m_terminate:
+                break
+
             model.fit(X, y, epochs=1, batch_size=self.batch_size, verbose=0, shuffle=False)
             model.reset_states()
             iteration_callback(i)
@@ -120,6 +126,9 @@ class NeuralNetwork:
 
     def make_multi_predictions(self, repeat_iterator_callback, epoch_iterator_callback):
         for i in range(self.repeats):
+            if self.m_terminate:
+                break
+
             model = self.fit_lstm(epoch_iterator_callback)
 
             predictions = Predictions()
@@ -135,6 +144,9 @@ class NeuralNetwork:
         # walk-forward validation on the test data
         predictions = list()
         for i in range(len(self.test_scaled)):
+            if self.m_terminate:
+                break
+
             # make one-step forecast
             X, y = self.test_scaled[i, 0:-1], self.test_scaled[i, -1]
             yhat = self.forecast_lstm(lstm_model, 1, X)
@@ -147,16 +159,19 @@ class NeuralNetwork:
             expected = self.raw_values[len(self.train) + i + 1]
             # print('Month=%d, Predicted=%f, Expected=%f' % (i + 1, yhat, expected))
 
-        # report performance
-        rmse = sqrt(mean_squared_error(self.raw_values[-self.sv_len:].values.tolist(), predictions))
-        # print('Test RMSE: %.3f' % rmse)
+        if not self.m_terminate:
+            # report performance
+            rmse = sqrt(mean_squared_error(self.raw_values[-self.sv_len:].values.tolist(), predictions))
+            # print('Test RMSE: %.3f' % rmse)
 
-        # line plot of observed vs predicted
-        # pyplot.plot(raw_values[-sv_len:])
-        # pyplot.plot(predictions)
-        # pyplot.show()
+            # line plot of observed vs predicted
+            # pyplot.plot(raw_values[-sv_len:])
+            # pyplot.plot(predictions)
+            # pyplot.show()
 
-        return predictions, rmse
+            return predictions, rmse
+        else:
+            return predictions, self.RMSE_ABORTED_VALUE
 
 
 class NeuralNetworkTeacher(QtCore.QThread):
@@ -172,3 +187,6 @@ class NeuralNetworkTeacher(QtCore.QThread):
         self.neural_network.make_multi_predictions(lambda i, predictions: self.signal_repeat.emit(i, predictions),
                                                    lambda i: self.signal_epoch.emit(i))
         self.signal_complete.emit()
+
+    def tterminate(self):
+        self.neural_network.m_terminate = True
