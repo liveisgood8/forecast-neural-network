@@ -1,22 +1,22 @@
 import sys
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QGuiApplication
 from PyQt5.Qt import *
 
 from modules.helper import grid_add_label_widget, show_msgbox
 from modules.NNCore import NeuralNetwork, NeuralNetworkTeacher, Predictions
 from modules.DataAnalyzer import DataAnalyzer
 from modules.ChartView import ChartView
+from form.predictions_form import PredictionsForm
 
 
 class NeuralNetworkDialog(QDialog):
 
-    def __init__(self, data_analyzer : DataAnalyzer, parent=None):
+    def __init__(self, data_analyzer: DataAnalyzer, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Окно настройки нейронной сети')
         self.setFixedSize(900, 600)
 
+        self.future_prediction = False
         self.data_analyzer = data_analyzer
         self.nn_teacher = None
         self.predictions = list()
@@ -50,9 +50,21 @@ class NeuralNetworkDialog(QDialog):
         self.spin_batch_size = QSpinBox()
         self.spin_batch_size.setMinimum(1)
         self.spin_batch_size.setMaximum(10000)
-        grid_add_label_widget(gb_settings_l, 'Размер партии (batch size)', self.spin_batch_size,
+        grid_row = grid_add_label_widget(gb_settings_l, 'Размер партии (batch size)', self.spin_batch_size,
                               grid_row)
 
+        #Size of train series
+        self.spin_train_size = QSpinBox()
+        self.spin_train_size.setMinimum(1)
+        self.spin_train_size.setMaximum(self.data_analyzer.get_data_len())
+        grid_row = grid_add_label_widget(gb_settings_l, 'Объем обучающей выборки', self.spin_train_size,
+                              grid_row)
+
+        #Number of predictions
+        self.spin_predictions_num = QSpinBox()
+        self.spin_predictions_num.setMinimum(1)
+        grid_add_label_widget(gb_settings_l, 'Количество прогнозируемых значений', self.spin_predictions_num,
+                              grid_row)
 
         ##NN report settings
         gb_report = QGroupBox('Отчет о работе сети')
@@ -119,7 +131,15 @@ class NeuralNetworkDialog(QDialog):
         self.set_cbuttons_state(False)
         self.set_spins_state(False)
 
+        #Pick future forecast if train_size == series_size
+        if self.spin_train_size.value() == self.data_analyzer.get_data_len():
+            self.future_prediction = True
+        else:
+            self.future_prediction = False
+
         nn = NeuralNetwork(self.data_analyzer.data,
+                           self.spin_train_size.value(),
+                           self.spin_predictions_num.value(),
                            self.spin_repeat_num.value(),
                            self.spin_epoch_num.value(),
                            self.spin_batch_size.value(),
@@ -147,27 +167,29 @@ class NeuralNetworkDialog(QDialog):
         self.r_current_epoch.setText(str(count + 1))
 
     def increment_repeats(self, count, predictions: Predictions):
-        if predictions.rmse != NeuralNetwork.RMSE_ABORTED_VALUE:
-            self.r_current_repeat.setText(str(count + 1))
+        self.r_current_repeat.setText(str(count + 1))
 
+        if not self.future_prediction:
             self.chart_view.series_append(count + 1, predictions.rmse, 1, self.get_min_rmse(),
                                           True, predictions.rmse > self.get_max_rmse())
-            self.predictions.append(predictions)
+        self.predictions.append(predictions)
 
-            #Add result in predictio_table
-            row_num = self.predictions_table.rowCount()
-            predictions_str = ', '.join(str(round(e, 4)) for e in predictions.values)
-            self.predictions_table.insertRow(row_num)
+        #Add result in predictio_table
+        row_num = self.predictions_table.rowCount()
+        predictions_str = ', '.join(str(round(e, 4)) for e in predictions.values)
+        self.predictions_table.insertRow(row_num)
 
-            r_item = QTableWidgetItem(str(round(predictions.rmse, 4)))
-            p_item = QTableWidgetItem(predictions_str)
-            # r_item.setFlags(r_item.flags() ^ (~Qt.ItemIsEditable or Qt.ItemIsSelectable))
-            # p_item.setFlags(p_item.flags() ^ (~Qt.ItemIsEditable or Qt.ItemIsSelectable))
-            self.predictions_table.setItem(row_num, 0, r_item)
-            self.predictions_table.setItem(row_num, 1, p_item)
+        r_item = QTableWidgetItem(str(round(predictions.rmse, 4))
+                                  if predictions.rmse != NeuralNetwork.RMSE_ABORTED_VALUE
+                                  else 'NaN')
+        p_item = QTableWidgetItem(predictions_str)
+        self.predictions_table.setItem(row_num, 0, r_item)
+        self.predictions_table.setItem(row_num, 1, p_item)
 
     def predictions_build_plot(self, row, column):
         print(self.predictions[row].values)
+        predictions_form = PredictionsForm(self.data_analyzer, self)
+        predictions_form.exec()
 
     def teaching_complete(self):
         self.set_cbuttons_state(True)

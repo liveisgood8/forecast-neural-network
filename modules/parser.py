@@ -3,7 +3,6 @@ import os
 from io import StringIO
 
 from PyQt5.QtCore import QDateTime
-from operator import itemgetter
 
 from data.dictionaries import data_headers_dict
 
@@ -16,7 +15,9 @@ class DataParser:
         self.detector = detector
         self.__parsed_data = parsed_data
 
-    def set_data(self, data):
+        self.selected_column = None
+
+    def set_origin_data(self, data):
         self.__parsed_data = self.__parse(data)
 
     def is_data_empty(self):
@@ -54,7 +55,14 @@ class DataParser:
         return data_headers_dict[self.param_name]
 
     def get_column(self, column_header):
+        self.selected_column = column_header
         return self.__parsed_data[['Время измерения', column_header]]
+
+    def get_selected_column(self):
+        if self.selected_column:
+            return self.__parsed_data[['Время измерения', self.selected_column]]
+        else:
+            return None
 
     def export(self, filename):
         self.__parsed_data['Время измерения'] = convert_qdatetime_to_str(self.__parsed_data['Время измерения'])

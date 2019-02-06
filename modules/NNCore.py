@@ -13,14 +13,6 @@ import numpy
 
 from PyQt5 import QtCore
 
-'''
-TODO
-Сделать потом несколько повторов
-Поэксперемнтировать с количеством элементов в пачке (batch size)
-Поэксперементировать с количествой нейронов (neurons)
-'''
-
-
 class Predictions:
     values = None
     rmse = 0
@@ -30,12 +22,19 @@ class NeuralNetwork:
     m_terminate = False #Response for interupting prediction
     RMSE_ABORTED_VALUE = -1
 
-    def __init__(self, data, repeats, epoch, batch_size, lstm_neurons):
+    def __init__(self, data, train_size, predictions_num, repeats, epoch, batch_size, lstm_neurons):
         self.repeats = repeats
         self.epoch = epoch
         self.batch_size = batch_size
         self.lstm_neurons = lstm_neurons
+        self.train_size = train_size
+        self.predictions_num = predictions_num
         self.raw_values = data.ix[:, 1]
+
+        if len(self.raw_values) == self.train_size:
+            self.is_future = True #Прогноз на будущее, за пределами допустимых значений
+        else:
+            self.is_future = False
 
         # transform data to be stationary
         diff_values = self.difference(self.raw_values, 1)
@@ -44,12 +43,19 @@ class NeuralNetwork:
         supervised = self.timeseries_to_supervised(diff_values, 1)
         supervised_values = supervised.values
 
-        # split data into train and test-sets on two equal parts
-        self.sv_len = (len(supervised_values) - 1) // 2
-        self.train, self.test = supervised_values[0:self.sv_len], supervised_values[-self.sv_len:]
+        self.scaler = self.make_scaler()
 
-        # transform the scale of the data
-        self.scaler, self.train_scaled, self.test_scaled = self.scale(self.train, self.test)
+        if self.is_future:
+            self.train = supervised_values[0:train_size]
+            self.train_scaled = self.scale(self.scaler, self.train)
+        else:
+            # split data into train and test-sets on two equal parts
+            self.train, self.test = supervised_values[0:train_size], \
+                                    supervised_values[-train_size:-train_size + predictions_num]
+
+            # transform the scale of the data
+            self.train_scaled, self.test_scaled = self.scale(self.scaler, self.train), \
+                                                  self.scale(self.scaler, self.test)
 
         KerasBackend.clear_session()
 
@@ -77,19 +83,23 @@ class NeuralNetwork:
     def inverse_difference(history, yhat, interval=1):
         return yhat + history.iloc[-interval]
 
-    # scale train and test data to [-1, 1]
     @staticmethod
-    def scale(train, test):
-        # fit scaler
+    def inverse_difference_byprev(yprev, yhat):
+        return yhat + yprev
+
+    #Make scaler [-1; 1]
+    def make_scaler(self):
         scaler = MinMaxScaler(feature_range=(-1, 1))
-        scaler = scaler.fit(train)
-        # transform train
-        train = train.reshape(train.shape[0], train.shape[1])
-        train_scaled = scaler.transform(train)
-        # transform test
-        test = test.reshape(test.shape[0], test.shape[1])
-        test_scaled = scaler.transform(test)
-        return scaler, train_scaled, test_scaled
+        return scaler
+
+    # scale data by using scaler
+    @staticmethod
+    def scale(scaler, data):
+        scaler = scaler.fit(data)
+        # transform
+        data = data.reshape(data.shape[0], data.shape[1])
+        data_scaled = scaler.transform(data)
+        return data_scaled
 
     # inverse scaling for a forecasted value
     @staticmethod
@@ -132,7 +142,11 @@ class NeuralNetwork:
             model = self.fit_lstm(epoch_iterator_callback)
 
             predictions = Predictions()
-            predictions.values, predictions.rmse = self.prediciotns_repeat(model)
+            if self.is_future:
+                predictions.values, predictions.rmse = self.future_predict(model)
+            else:
+                predictions.values, predictions.rmse = self.prediciotns_repeat(model)
+
             repeat_iterator_callback(i, predictions)
 
     def prediciotns_repeat(self, lstm_model):
@@ -161,7 +175,8 @@ class NeuralNetwork:
 
         if not self.m_terminate:
             # report performance
-            rmse = sqrt(mean_squared_error(self.raw_values[-self.sv_len:].values.tolist(), predictions))
+            rmse = sqrt(mean_squared_error(self.raw_values[-self.train_size:-self.train_size + self.predictions_num]
+                                           .values.tolist(), predictions))
             # print('Test RMSE: %.3f' % rmse)
 
             # line plot of observed vs predicted
@@ -172,6 +187,34 @@ class NeuralNetwork:
             return predictions, rmse
         else:
             return predictions, self.RMSE_ABORTED_VALUE
+
+    def future_predict(self, lstm_model):
+        # walk-forward validation on the test data
+        predictions = list()
+
+        prev_row_value = self.raw_values.iloc[-1]
+        prev_value = self.train_scaled[-1, 0:-1]
+        for i in range(self.predictions_num):
+            if self.m_terminate:
+                break
+
+            #TODO
+            yhat = self.forecast_lstm(lstm_model, 1, prev_value)
+            yhat = self.invert_scale(self.scaler, prev_value, yhat)
+            yhat_converted = self.inverse_difference_byprev(prev_row_value, yhat)
+
+            #difference
+            values = Series([prev_row_value, yhat_converted])
+            diff_values = self.difference(values, 1)
+            supervised = self.timeseries_to_supervised(diff_values, 1)
+            supervised_values = supervised.values
+            scaled_values = self.scale(self.scaler, supervised_values)
+            prev_row_value = yhat_converted
+            prev_value = scaled_values[-1, 0:-1]
+
+            predictions.append(yhat_converted)
+
+        return predictions, self.RMSE_ABORTED_VALUE
 
 
 class NeuralNetworkTeacher(QtCore.QThread):

@@ -2,7 +2,6 @@ from PyQt5.QtWidgets import QDialog, QGridLayout, QVBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMenuBar, QAction, QPushButton, QFileDialog
 
-from data.parser import DataParser
 from modules.ChartView import ChartView
 from modules.DataAnalyzer import DataAnalyzer
 from form.fft_form import FftDialog
@@ -12,13 +11,12 @@ from modules import helper
 
 class GraphicWindow(QDialog):
 
-    def __init__(self, parser: DataParser, parent=None):
+    def __init__(self, data_analyzer: DataAnalyzer, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Окно графиков')
         self.setMinimumSize(1200, 800)
 
-        self.parser = parser
-        self.data_analyzer = DataAnalyzer()
+        self.data_analyzer = data_analyzer
 
         self.chart_view = ChartView()
         self.chart_view.x_time_scaled = True
@@ -46,8 +44,8 @@ class GraphicWindow(QDialog):
 
         #layout - groupbox for measure info (station id, detector SN)
         measure_info_layout = QVBoxLayout()
-        station_lb = QLabel('Номер станции: ' + str(parser.station))
-        sn_lb = QLabel('Серийный номер датчика: ' + parser.detector)
+        station_lb = QLabel('Номер станции: ' + str(data_analyzer.station))
+        sn_lb = QLabel('Серийный номер датчика: ' + data_analyzer.detector)
         measure_info_layout.addWidget(station_lb)
         measure_info_layout.addWidget(sn_lb)
 
@@ -103,7 +101,7 @@ class GraphicWindow(QDialog):
         self.combo_headers.currentTextChanged.connect(self.buildplot)
 
         #Заполним comboBox
-        for header in parser.get_headers():
+        for header in data_analyzer.get_headers():
             self.combo_headers.addItem(header)
 
 
@@ -136,7 +134,7 @@ class GraphicWindow(QDialog):
 
     def buildplot(self, header_name):
         #Получим необходимую колонку
-        data = self.parser.get_column(header_name)
+        data = self.data_analyzer.get_column(header_name)
 
         #Занесем данные в анализатор
         self.data_analyzer.set_data(data)
@@ -148,7 +146,7 @@ class GraphicWindow(QDialog):
         self.chart_view.y_min = float(self.data_analyzer.min() - 0.1)
         self.chart_view.y_max = float(self.data_analyzer.max() + 0.1)
 
-        self.chart_view.build_plot((x, y), self.parser.rus_param_name)
+        self.chart_view.build_plot((x, y), self.data_analyzer.rus_param_name)
 
         #Заполним параметры
         self.fill_params()
@@ -173,7 +171,7 @@ class GraphicWindow(QDialog):
     def export_data(self):
         file_name = QFileDialog.getSaveFileName(self, 'Save file', None, "CSV (*.csv);;Excel (*.xlsx)")[0]
         if file_name:
-            export_result = self.parser.export(file_name)
+            export_result = self.data_analyzer.export(file_name)
             if export_result == 0:
                 helper.show_msgbox('Расширение файла для экспорта не указано, экспорт отменен!')
             elif export_result == -1:

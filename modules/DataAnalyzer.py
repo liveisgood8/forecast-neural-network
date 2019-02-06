@@ -4,7 +4,14 @@ import pandas
 import scipy.stats as scistats
 import scipy.fftpack as scifft
 
-class DataAnalyzer():
+from modules.parser import DataParser
+
+class DataAnalyzer(DataParser):
+    def __init__(self, rus_param_name, param_name, station, detector, parsed_data=None):
+        super().__init__(rus_param_name, param_name, station, detector, parsed_data)
+        self.data = None
+        self.data_values = None
+
     def set_data(self, data: pandas.DataFrame):
         self.data = data
         self.data_values = data.iloc[:,1]
@@ -46,7 +53,10 @@ class DataAnalyzer():
         return xf[1:], yff[1:], yff_phase[1:], yf[1:].round(5)
 
     def get_time_delta_of_measure(self):
-        return self.data.iloc[:,0][0].secsTo(self.data.iloc[:,0][1]);
+        return self.data.iloc[:,0][0].secsTo(self.data.iloc[:,0][1])
+
+    def get_data_len(self):
+        return len(self.data_values)
 
     def min(self):
         return np.amin(self.data_values)
