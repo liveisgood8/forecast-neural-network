@@ -10,6 +10,7 @@ class ChartView(QChartView):
         super().__init__()
         self.__last_mouse_pos = None
         self.lineSeries = QLineSeries()
+        self.lineSeries.setPointsVisible(True)
         self.no_margins = no_margins
 
         #Create a menu by right click on QChartView
@@ -113,11 +114,7 @@ class ChartView(QChartView):
         self.lineSeries.setPointsVisible(True)
 
         if data != None:
-            xf = data[0]
-            yf = data[1]
-
-            for i in range(len(xf)):
-                self.lineSeries.append(xf[i], yf[i])
+            self.fill_series(data, self.lineSeries)
 
         chart.addSeries(self.lineSeries)
         chart.legend().hide()
@@ -127,6 +124,39 @@ class ChartView(QChartView):
 
         self.lineSeries.attachAxis(axis_x)
         self.lineSeries.attachAxis(axis_y)
+
+        self.setChart(chart)
+
+    def build_multiple_plot(self, first_data, second_data, title):
+        axis_x, axis_y = self.make_axis()
+
+        chart = QChart()
+        if self.no_margins:
+            chart.setMargins(QMargins(0, 0, 0, 0))
+
+        self.clean()
+
+        first_lineseries = QLineSeries()
+        second_lineseries = QLineSeries()
+
+        self.fill_series(first_data, first_lineseries)
+        self.fill_series(second_data, second_lineseries)
+
+        chart.addSeries(first_lineseries)
+        chart.addSeries(second_lineseries)
+        chart.addAxis(axis_x, Qt.AlignBottom)
+        chart.addAxis(axis_y, Qt.AlignLeft)
+        chart.legend().hide()
+        chart.setTitle(title)
+
+        first_lineseries.attachAxis(axis_x)
+        first_lineseries.attachAxis(axis_y)
+
+        second_lineseries.attachAxis(axis_x)
+        second_lineseries.attachAxis(axis_y)
+
+        first_lineseries.setPointsVisible(True)
+        second_lineseries.setPointsVisible(True)
 
         self.setChart(chart)
 
@@ -141,6 +171,26 @@ class ChartView(QChartView):
 
         if y_range:
             self.chart().axisY().setMax(y + 0.2)
+
+    def add_series(self, data):
+        series = QLineSeries()
+        series.setPointsVisible(True)
+
+        self.fill_series(data, series)
+
+        series.attachAxis(self.chart().axisX())
+        series.attachAxis(self.chart().axisY())
+
+        self.chart().addSeries(series)
+
+    def fill_series(self, data, series):
+        xf = data[0]
+        yf = data[1]
+
+        for i in range(len(xf)):
+            series.append(xf[i], yf[i])
+
+        return series
 
     def clean(self):
         self.lineSeries.clear()

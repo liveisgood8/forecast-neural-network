@@ -140,7 +140,7 @@ class GraphicWindow(QDialog):
         self.data_analyzer.set_data(data)
 
         #Конвертируем в удобный вид
-        x, y = self.data_analyzer.convert_data()
+        x, y = DataAnalyzer.convert_data(self.data_analyzer.data)
 
         self.chart_view.y_name = header_name
         self.chart_view.y_min = float(self.data_analyzer.min() - 0.1)

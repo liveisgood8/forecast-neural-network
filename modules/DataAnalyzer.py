@@ -14,18 +14,38 @@ class DataAnalyzer(DataParser):
 
     def set_data(self, data: pandas.DataFrame):
         self.data = data
-        self.data_values = data.iloc[:,1]
+        self.data_values = data.iloc[:, 1]
 
     #Преобразование данных для построения графика
-    def convert_data(self):
+    @staticmethod
+    def convert_data(data):
         x = list()
         y = list()
 
-        for index, row in self.data.iterrows():
+        for index, row in data.iterrows():
             x.append(row.iloc[0].toMSecsSinceEpoch())
             y.append(float(row.iloc[1]))
 
         return x, y
+
+    #Преобразует лист предсказаний в time series, начальное время определяется по объему обуч. выборки
+    def predictions_to_timeseries(self, predictions, train_size):
+        time_series_list = list()
+
+        time_delta = self.get_time_delta_of_measure()
+        data_times = self.data.iloc[:, 0]
+
+        start_time = data_times.iloc[-1]
+        if train_size < self.get_data_len():
+            start_time = data_times.iloc[train_size - 1]
+
+        for pred in predictions:
+            start_time = start_time.addSecs(time_delta)
+            time_series_list.append([start_time, pred])
+
+        print(time_series_list)
+        time_series_frame = pandas.DataFrame(time_series_list)
+        return time_series_frame
 
     def fft(self):
         # TEST SIGNAL

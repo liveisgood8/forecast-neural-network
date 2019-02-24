@@ -3,7 +3,7 @@ import sys
 from PyQt5.Qt import *
 
 from modules.helper import grid_add_label_widget, show_msgbox
-from modules.NNCore import NeuralNetwork, NeuralNetworkTeacher, Predictions
+from modules.NNCore import INetwork, NSingleStep, NMultiWindowMode, NeuralNetworkTeacher, Predictions
 from modules.DataAnalyzer import DataAnalyzer
 from modules.ChartView import ChartView
 from form.predictions_form import PredictionsForm
@@ -127,6 +127,7 @@ class NeuralNetworkDialog(QDialog):
         self.setLayout(main_layout)
 
     def nn_start_education(self):
+        self.clean_report()
         self.chart_view.clean()
         self.set_cbuttons_state(False)
         self.set_spins_state(False)
@@ -137,13 +138,13 @@ class NeuralNetworkDialog(QDialog):
         else:
             self.future_prediction = False
 
-        nn = NeuralNetwork(self.data_analyzer.data,
-                           self.spin_train_size.value(),
-                           self.spin_predictions_num.value(),
-                           self.spin_repeat_num.value(),
-                           self.spin_epoch_num.value(),
-                           self.spin_batch_size.value(),
-                           self.spin_neuron_num.value())
+        nn = NSingleStep(self.data_analyzer.data,
+                         self.spin_train_size.value(),
+                         self.spin_predictions_num.value(),
+                         self.spin_repeat_num.value(),
+                         self.spin_epoch_num.value(),
+                         self.spin_batch_size.value(),
+                         self.spin_neuron_num.value())
 
         self.nn_teacher = NeuralNetworkTeacher(nn, self)
         self.nn_teacher.signal_epoch.connect(self.increment_epoch)
@@ -180,15 +181,18 @@ class NeuralNetworkDialog(QDialog):
         self.predictions_table.insertRow(row_num)
 
         r_item = QTableWidgetItem(str(round(predictions.rmse, 4))
-                                  if predictions.rmse != NeuralNetwork.RMSE_ABORTED_VALUE
+                                  if predictions.rmse != NSingleStep.RMSE_ABORTED_VALUE and
+                                     predictions.rmse != NMultiWindowMode.RMSE_SKIP
                                   else 'NaN')
         p_item = QTableWidgetItem(predictions_str)
         self.predictions_table.setItem(row_num, 0, r_item)
         self.predictions_table.setItem(row_num, 1, p_item)
 
     def predictions_build_plot(self, row, column):
-        print(self.predictions[row].values)
-        predictions_form = PredictionsForm(self.data_analyzer, self)
+        predictions_df = self.data_analyzer.predictions_to_timeseries(self.predictions[row].values,
+                                                                      self.spin_train_size.value())
+
+        predictions_form = PredictionsForm(self.data_analyzer, predictions_df, self)
         predictions_form.exec()
 
     def teaching_complete(self):
@@ -204,6 +208,9 @@ class NeuralNetworkDialog(QDialog):
     def clean_report(self):
         self.r_current_epoch.setText('0')
         self.r_current_repeat.setText('0')
+        self.predictions.clear()
+        self.predictions_table.clear()
+        self.predictions_table.setRowCount(0)
 
     def set_cbuttons_state(self, state):
         self.b_start.setEnabled(state)

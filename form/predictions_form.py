@@ -5,7 +5,7 @@ from modules.DataAnalyzer import DataAnalyzer
 
 
 class PredictionsForm(QDialog):
-    def __init__(self, data_analyzer: DataAnalyzer, parent=None):
+    def __init__(self, data_analyzer: DataAnalyzer, predictios_timeseries, parent=None):
         super().__init__(parent)
 
         self.data_analyzer = data_analyzer
@@ -28,9 +28,10 @@ class PredictionsForm(QDialog):
         #Получим необходимую колонку
         data = self.data_analyzer.get_selected_column()
         self.data_analyzer.set_data(data)
-        x, y = self.data_analyzer.convert_data()
+        x, y = DataAnalyzer.convert_data(self.data_analyzer.data)
 
-        self.chart_view.build_plot((x, y), self.data_analyzer.rus_param_name)
+        self.chart_view.build_multiple_plot((x, y), DataAnalyzer.convert_data(predictios_timeseries),
+                                            self.data_analyzer.rus_param_name)
 
 
 
