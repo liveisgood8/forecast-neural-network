@@ -114,7 +114,7 @@ class ChartView(QChartView):
         self.lineSeries.setPointsVisible(True)
 
         if data != None:
-            self.fill_series(data, self.lineSeries)
+            self.lineSeries = self.fill_series(data)
 
         chart.addSeries(self.lineSeries)
         chart.legend().hide()
@@ -139,8 +139,8 @@ class ChartView(QChartView):
         first_lineseries = QLineSeries()
         second_lineseries = QLineSeries()
 
-        self.fill_series(first_data, first_lineseries)
-        self.fill_series(second_data, second_lineseries)
+        first_lineseries =self.fill_series(first_data)
+        second_lineseries = self.fill_series(second_data)
 
         chart.addSeries(first_lineseries)
         chart.addSeries(second_lineseries)
@@ -173,22 +173,23 @@ class ChartView(QChartView):
             self.chart().axisY().setMax(y + 0.2)
 
     def add_series(self, data):
-        series = QLineSeries()
-        series.setPointsVisible(True)
+        series = self.fill_series(data)
 
-        self.fill_series(data, series)
+        self.chart().addSeries(series)
 
         series.attachAxis(self.chart().axisX())
         series.attachAxis(self.chart().axisY())
 
-        self.chart().addSeries(series)
+    def fill_series(self, data):
+        series = QLineSeries()
+        series.setPointsVisible(True)
 
-    def fill_series(self, data, series):
         xf = data[0]
         yf = data[1]
 
         for i in range(len(xf)):
             series.append(xf[i], yf[i])
+
 
         return series
 

@@ -57,6 +57,18 @@ def scale(scaler, data):
     data_scaled = scaler.transform(data)
     return data_scaled
 
+def scale_test(train, test):
+    # fit scaler
+    scaler = MinMaxScaler(feature_range=(-1, 1))
+    scaler = scaler.fit(train)
+    # transform train
+    train = train.reshape(train.shape[0], train.shape[1])
+    train_scaled = scaler.transform(train)
+    # transform test
+    test = test.reshape(test.shape[0], test.shape[1])
+    test_scaled = scaler.transform(test)
+    return scaler, train_scaled, test_scaled
+
 # inverse scaling for a forecasted value
 def invert_scale(scaler, X, value):
     new_row = [x for x in X] + [value]
@@ -84,19 +96,17 @@ class INetwork:
     m_terminate = False  # Response for interupting prediction
     RMSE_ABORTED_VALUE = -1
 
-    def __init__(self, data, predictions_num, repeats, epoch, batch_size, lstm_neurons):
+    def __init__(self, data, repeats, epoch, batch_size, lstm_neurons):
         self.repeats = repeats
         self.epoch = epoch
         self.batch_size = batch_size
         self.lstm_neurons = lstm_neurons
-        self.predictions_num = predictions_num
         self.raw_values = data.ix[:, 1].tolist()
 
         self.train = None
         self.train_scaled = None
 
         self.scaler = make_scaler()
-        self.prepare_data()
 
         KerasBackend.clear_session()
 
@@ -109,13 +119,17 @@ class INetwork:
         model.add(Dense(1))
         model.compile(loss='mean_squared_error', optimizer='adam')
 
+        # model.fit(X, y, epochs=1000, batch_size=self.batch_size, verbose=1, shuffle=False)
+
         for i in range(self.epoch):
             if self.m_terminate:
                 break
 
-            model.fit(X, y, epochs=1, batch_size=self.batch_size, verbose=0, shuffle=False)
+            model.fit(X, y, epochs=1, batch_size=self.batch_size, verbose=1, shuffle=False)
             model.reset_states()
-            iteration_callback(i)
+
+            if iteration_callback:
+                iteration_callback(i)
         return model
 
     def make_multi_predictions(self, repeat_iterator_callback, epoch_iterator_callback):
@@ -136,31 +150,45 @@ class INetwork:
     def prepare_data(self): raise NotImplementedError
 
 class NSingleStep(INetwork):
-    def __init__(self, data, train_size, predictions_num, repeats, epoch, batch_size, lstm_neurons):
+    def __init__(self, data, train_size, repeats, epoch, batch_size, lstm_neurons):
+        super().__init__(data, repeats, epoch, batch_size, lstm_neurons)
+
         self.train_size = train_size
         self.test = None
         self.test_scaled = None
 
-        super().__init__(data, predictions_num, repeats, epoch, batch_size, lstm_neurons)
-
+        self.prepare_data()
 
     def prepare_data(self):
         # transform data to be stationary
+        # diff_values = difference(self.raw_values, 1)
+        # diff_values = self.raw_values
+        #
+        # # transform data to be supervised learning
+        # supervised = timeseries_to_supervised(diff_values, 1)
+        # supervised_values = supervised.values
+        #
+        # self.scaler = make_scaler()
+        #
+        # # split data into train and test-sets on two equal parts
+        # self.train, self.test = supervised_values[0:self.train_size], \
+        #                         supervised_values[self.train_size:]
+        #
+        # # transform the scale of the data
+        # self.train_scaled, self.test_scaled = scale(self.scaler, self.train), \
+        #                                       scale(self.scaler, self.test)
+
         diff_values = difference(self.raw_values, 1)
 
         # transform data to be supervised learning
         supervised = timeseries_to_supervised(diff_values, 1)
         supervised_values = supervised.values
 
-        self.scaler = make_scaler()
-
-        # split data into train and test-sets on two equal parts
-        self.train, self.test = supervised_values[0:self.train_size], \
-                                supervised_values[self.train_size:]
+        # split data into train and test-sets
+        train, test = supervised_values[:self.train_size], supervised_values[self.train_size:]
 
         # transform the scale of the data
-        self.train_scaled, self.test_scaled = scale(self.scaler, self.train), \
-                                              scale(self.scaler, self.test)
+        self.scaler, self.train_scaled, self.test_scaled = scale_test(train, test)
 
     def prediciotns_repeat(self, lstm_model):
         # # forecast the entire training dataset to build up state for forecasting - ???????
@@ -190,7 +218,7 @@ class NSingleStep(INetwork):
 
         if not self.m_terminate:
             # report performance
-            rmse = sqrt(mean_squared_error(self.raw_values[self.train_size + 1:], predictions))
+            rmse = sqrt(mean_squared_error(self.raw_values[self.train_size:-1], predictions))
             return predictions, rmse
         else:
             return predictions, self.RMSE_ABORTED_VALUE
@@ -200,11 +228,15 @@ class NMultiWindowMode(INetwork):
     RMSE_SKIP = -2
 
     def __init__(self, data, predictions_num, repeats, epoch, batch_size, lstm_neurons, window_size):
+        super().__init__(data, repeats, epoch, batch_size, lstm_neurons)
+
+        self.predictions_num = predictions_num
         self.test_scaled = list()
         self.window_size = window_size
-        self.raw_values_window = self.raw_values[:-self.window_size]
+        # self.raw_values_window = self.raw_values[len(self.raw_values) - self.window_size:]
+        self.raw_values_window = self.raw_values
 
-        super().__init__(data, predictions_num, repeats, epoch, batch_size, lstm_neurons)
+        self.prepare_data()
 
     def prepare_data(self):
         # transform data to be stationary
@@ -214,7 +246,7 @@ class NMultiWindowMode(INetwork):
         supervised = timeseries_to_supervised(diff_values, 1)
         supervised_values = supervised.values
 
-        self.train = supervised_values
+        self.train = supervised_values[0:1]
         self.train_scaled = scale(self.scaler, self.train)
 
     @staticmethod
@@ -237,7 +269,8 @@ class NMultiWindowMode(INetwork):
             yhat_converted = self.inverse_difference_byprev(prev_row_value, yhat)
             predictions.append(yhat_converted)
 
-            self.raw_values_window = self.raw_values_window[1:].append(yhat_converted)
+            self.raw_values_window = self.raw_values_window[1:]
+            self.raw_values_window.append(yhat_converted)
             self.prepare_data()
             lstm_model = self.fit_lstm(None)
 

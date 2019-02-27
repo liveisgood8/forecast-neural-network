@@ -5,7 +5,7 @@ from modules.DataAnalyzer import DataAnalyzer
 
 
 class PredictionsForm(QDialog):
-    def __init__(self, data_analyzer: DataAnalyzer, predictios_timeseries, parent=None):
+    def __init__(self, data_analyzer: DataAnalyzer, train_size, predictions, parent=None):
         super().__init__(parent)
 
         self.data_analyzer = data_analyzer
@@ -30,8 +30,17 @@ class PredictionsForm(QDialog):
         self.data_analyzer.set_data(data)
         x, y = DataAnalyzer.convert_data(self.data_analyzer.data)
 
-        self.chart_view.build_multiple_plot((x, y), DataAnalyzer.convert_data(predictios_timeseries),
-                                            self.data_analyzer.rus_param_name)
+        #Строим базовый график
+        self.chart_view.build_plot((x, y), self.data_analyzer.rus_param_name)
+        # pred_df = self.data_analyzer.predictions_to_timeseries(predictions[0], train_size)
+        # pred_time_series = self.data_analyzer.convert_data(pred_df)
+        # self.chart_view.build_multiple_plot((x, y), pred_time_series, self.data_analyzer.rus_param_name)
 
+        #Конвертим предсказания и добавляем к графику
+        for pred in predictions:
+            pred_df = self.data_analyzer.predictions_to_timeseries(pred, train_size)
+            pred_time_series = self.data_analyzer.convert_data(pred_df)
+            self.chart_view.add_series(pred_time_series)
+            train_size += 1
 
 

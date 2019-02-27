@@ -4,6 +4,7 @@ from PyQt5.Qt import *
 
 from modules.helper import grid_add_label_widget, show_msgbox
 from modules.NNCore import INetwork, NSingleStep, NMultiWindowMode, NeuralNetworkTeacher, Predictions
+from modules.NNCoreMulti import NMultiStep
 from modules.DataAnalyzer import DataAnalyzer
 from modules.ChartView import ChartView
 from form.predictions_form import PredictionsForm
@@ -21,12 +22,28 @@ class NeuralNetworkDialog(QDialog):
         self.nn_teacher = None
         self.predictions = list()
 
+        ##NN Mode settings section
+        gb_mode = QGroupBox('Выбор режима работы')
+        gb_mode_l = QGridLayout()
+        gb_mode.setLayout(gb_mode_l)
+
+        #Single step
+        self.rb_mode_single = QRadioButton()
+        grid_row = grid_add_label_widget(gb_mode_l, 'Один шаг', self.rb_mode_single, 0)
+
+        #Windows mode
+        self.rb_mode_window = QRadioButton()
+        grid_row = grid_add_label_widget(gb_mode_l, 'Несколько шагов (окно)', self.rb_mode_window, grid_row)
+
+        #Multi mode
+        self.rb_mode_multi = QRadioButton()
+        grid_row = grid_add_label_widget(gb_mode_l, 'Несколько шагов (стандарт)', self.rb_mode_multi, grid_row)
+
         ##NN settings section
         gb_settings = QGroupBox('Настройки нейронной сети')
         gb_settings_l = QGridLayout()
         # gb_settings_l.setColumnMinimumWidth(0, int(self.width() * 0.7))
         gb_settings.setLayout(gb_settings_l)
-
 
         #Number of repeats field
         self.spin_repeat_num = QSpinBox()
@@ -119,11 +136,12 @@ class NeuralNetworkDialog(QDialog):
 
         #Main layout
         main_layout = QGridLayout()
-        main_layout.addWidget(gb_settings, 0, 0)
-        main_layout.addWidget(gb_report, 1, 0)
+        main_layout.addWidget(gb_mode, 0, 0)
+        main_layout.addWidget(gb_settings, 1, 0)
+        main_layout.addWidget(gb_report, 2, 0)
         main_layout.addWidget(self.chart_view, 0, 1)
         main_layout.addWidget(self.predictions_table, 1, 1)
-        main_layout.addLayout(buttons_layout, 2, 0, 1, 2)
+        main_layout.addLayout(buttons_layout, 3, 0, 1, 2)
         self.setLayout(main_layout)
 
     def nn_start_education(self):
@@ -138,13 +156,30 @@ class NeuralNetworkDialog(QDialog):
         else:
             self.future_prediction = False
 
-        nn = NSingleStep(self.data_analyzer.data,
-                         self.spin_train_size.value(),
-                         self.spin_predictions_num.value(),
-                         self.spin_repeat_num.value(),
-                         self.spin_epoch_num.value(),
-                         self.spin_batch_size.value(),
-                         self.spin_neuron_num.value())
+        if self.rb_mode_single.isChecked():
+            nn = NSingleStep(self.data_analyzer.data,
+                             self.spin_train_size.value(),
+                             self.spin_repeat_num.value(),
+                             self.spin_epoch_num.value(),
+                             self.spin_batch_size.value(),
+                             self.spin_neuron_num.value())
+        elif self.rb_mode_window.isChecked():
+            nn = NMultiWindowMode(self.data_analyzer.data,
+                             self.spin_predictions_num.value(),
+                             self.spin_repeat_num.value(),
+                             self.spin_epoch_num.value(),
+                             self.spin_batch_size.value(),
+                             self.spin_neuron_num.value(),
+                             1)
+        else:
+            nn = NMultiStep(self.data_analyzer.data,
+                            self.spin_train_size.value(),
+                            self.spin_repeat_num.value(),
+                            self.spin_epoch_num.value(),
+                            1,
+                            1,
+                            1,
+                            self.spin_neuron_num.value())
 
         self.nn_teacher = NeuralNetworkTeacher(nn, self)
         self.nn_teacher.signal_epoch.connect(self.increment_epoch)
@@ -175,24 +210,37 @@ class NeuralNetworkDialog(QDialog):
                                           True, predictions.rmse > self.get_max_rmse())
         self.predictions.append(predictions)
 
-        #Add result in predictio_table
+        #Add result in prediction_table
         row_num = self.predictions_table.rowCount()
-        predictions_str = ', '.join(str(round(e, 4)) for e in predictions.values)
+        if self.rb_mode_multi.isChecked():
+            predictions_str = ''
+            for pred in predictions.values:
+                predictions_str = predictions_str + '[' + ', '.join(str(round(e, 4)) for e in pred) + '] '
+        else:
+            predictions_str = ', '.join(str(round(e, 4)) for e in predictions.values)
+
         self.predictions_table.insertRow(row_num)
 
         r_item = QTableWidgetItem(str(round(predictions.rmse, 4))
                                   if predictions.rmse != NSingleStep.RMSE_ABORTED_VALUE and
                                      predictions.rmse != NMultiWindowMode.RMSE_SKIP
                                   else 'NaN')
+
         p_item = QTableWidgetItem(predictions_str)
         self.predictions_table.setItem(row_num, 0, r_item)
         self.predictions_table.setItem(row_num, 1, p_item)
 
     def predictions_build_plot(self, row, column):
-        predictions_df = self.data_analyzer.predictions_to_timeseries(self.predictions[row].values,
-                                                                      self.spin_train_size.value())
+        predictions = list()
+        if not self.rb_mode_multi.isChecked():
+            predictions.append(self.predictions[row].values)
+        else:
+            predictions = self.predictions[row].values
 
-        predictions_form = PredictionsForm(self.data_analyzer, predictions_df, self)
+        predictions_form = PredictionsForm(self.data_analyzer,
+                                           self.spin_train_size.value(),
+                                           predictions,
+                                           self)
         predictions_form.exec()
 
     def teaching_complete(self):
@@ -204,6 +252,8 @@ class NeuralNetworkDialog(QDialog):
         self.spin_neuron_num.setEnabled(state)
         self.spin_epoch_num.setEnabled(state)
         self.spin_repeat_num.setEnabled(state)
+        self.spin_train_size.setEnabled(state)
+        self.spin_predictions_num.setEnabled(state)
 
     def clean_report(self):
         self.r_current_epoch.setText('0')

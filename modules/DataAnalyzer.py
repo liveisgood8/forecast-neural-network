@@ -43,7 +43,6 @@ class DataAnalyzer(DataParser):
             start_time = start_time.addSecs(time_delta)
             time_series_list.append([start_time, pred])
 
-        print(time_series_list)
         time_series_frame = pandas.DataFrame(time_series_list)
         return time_series_frame
 
