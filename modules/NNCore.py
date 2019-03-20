@@ -25,23 +25,12 @@ def timeseries_to_supervised(data, lag=1):
     df.fillna(0, inplace=True)
     return df
 
-# create a differenced series
-def difference(dataset, interval=1):
-    diff = list()
-    for i in range(interval, len(dataset)):
-        value = dataset[i] - dataset[i - interval]
-        diff.append(value)
-    return Series(diff)
-
-def inverse_difference_by_prev(yhat, prev):
-    return yhat + prev
-
 #Make scaler [-1; 1]
 def make_scaler():
     scaler = MinMaxScaler(feature_range=(-1, 1))
     return scaler
 
-def scale(scaler, data):
+def scale_data(scaler, data):
     scaler = scaler.fit(data)
 
     # transform
@@ -49,7 +38,7 @@ def scale(scaler, data):
     data_scaled = scaler.transform(data)
     return data_scaled
 
-def scale_test(train, test):
+def scale_all(train, test):
     # fit scaler
     scaler = MinMaxScaler(feature_range=(-1, 1))
     scaler = scaler.fit(train)
@@ -143,14 +132,13 @@ class INetwork:
         self.batch_size = batch_size
         self.lstm_neurons = lstm_neurons
         self.raw_values = data.ix[:, 1].tolist()
+        self.gui_controller = GuiController()
 
         self.lstm_layers = lstm_layers
         self.optimizer = optimizer
         self.train = None
         self.train_scaled = None
-
-        self.scaler = make_scaler()
-        self.gui_controller = GuiController()
+        self.scaler = None
 
         KerasBackend.clear_session()
 
@@ -229,7 +217,7 @@ class NSingleStep(INetwork):
         train, test = supervised_values[:self.train_size], supervised_values[self.train_size:]
 
         # transform the scale of the data
-        self.scaler, self.train_scaled, self.test_scaled = scale_test(train, test)
+        self.scaler, self.train_scaled, self.test_scaled = scale_all(train, test)
 
     # fit an LSTM network to training data
     def fit_lstm(self, iteration_callback):
