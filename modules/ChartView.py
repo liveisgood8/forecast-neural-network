@@ -10,7 +10,7 @@ class ChartView(QChartView):
         super().__init__()
         self.__last_mouse_pos = None
         self.lineSeries = QLineSeries()
-        self.lineSeries.setPointsVisible(True)
+        # self.lineSeries.setPointsVisible(True)
         self.no_margins = no_margins
 
         #Create a menu by right click on QChartView
@@ -103,7 +103,7 @@ class ChartView(QChartView):
 
         return axis_x, axis_y
 
-    def build_plot(self, data, title):
+    def build_plot(self, data, title, is_legend_visible=False, series_name=None):
         axis_x, axis_y = self.make_axis()
 
         chart = QChart()
@@ -111,13 +111,13 @@ class ChartView(QChartView):
             chart.setMargins(QMargins(0, 0, 0, 0))
 
         self.clean()
-        self.lineSeries.setPointsVisible(True)
 
         if data != None:
             self.lineSeries = self.fill_series(data)
+            self.lineSeries.setName(series_name)
 
         chart.addSeries(self.lineSeries)
-        chart.legend().hide()
+        chart.legend().setVisible(is_legend_visible)
         chart.setTitle(title)
         chart.addAxis(axis_x, Qt.AlignBottom)
         chart.addAxis(axis_y, Qt.AlignLeft)
@@ -136,17 +136,14 @@ class ChartView(QChartView):
 
         self.clean()
 
-        first_lineseries = QLineSeries()
-        second_lineseries = QLineSeries()
-
-        first_lineseries =self.fill_series(first_data)
+        first_lineseries = self.fill_series(first_data)
         second_lineseries = self.fill_series(second_data)
 
         chart.addSeries(first_lineseries)
         chart.addSeries(second_lineseries)
         chart.addAxis(axis_x, Qt.AlignBottom)
         chart.addAxis(axis_y, Qt.AlignLeft)
-        chart.legend().hide()
+        chart.legend().setVisible(False)
         chart.setTitle(title)
 
         first_lineseries.attachAxis(axis_x)
@@ -172,8 +169,9 @@ class ChartView(QChartView):
         if y_range:
             self.chart().axisY().setMax(y + 0.2)
 
-    def add_series(self, data):
+    def add_series(self, data, series_name=None):
         series = self.fill_series(data)
+        series.setName(series_name)
 
         self.chart().addSeries(series)
 
@@ -189,7 +187,6 @@ class ChartView(QChartView):
 
         for i in range(len(xf)):
             series.append(xf[i], yf[i])
-
 
         return series
 

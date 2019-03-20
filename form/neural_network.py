@@ -29,6 +29,7 @@ class NeuralNetworkDialog(QDialog):
 
         #Single step
         self.rb_mode_single = QRadioButton()
+        self.rb_mode_single.setChecked(True)
         grid_row = grid_add_label_widget(gb_mode_l, 'Один шаг', self.rb_mode_single, 0)
 
         #Windows mode
@@ -60,8 +61,15 @@ class NeuralNetworkDialog(QDialog):
         #Number of neurons field
         self.spin_neuron_num = QSpinBox()
         self.spin_neuron_num.setMinimum(1)
+        self.spin_neuron_num.setMaximum(250)
         grid_row = grid_add_label_widget(gb_settings_l, 'Количество нейронов в слое LSTM',
                                                     self.spin_neuron_num, grid_row)
+
+        #Number of layers
+        self.spin_layers_num = QSpinBox()
+        self.spin_layers_num.setMinimum(1)
+        grid_row = grid_add_label_widget(gb_settings_l, 'Количество скрытых слоев', self.spin_layers_num,
+                              grid_row)
 
         #Batch size field
         self.spin_batch_size = QSpinBox()
@@ -77,11 +85,11 @@ class NeuralNetworkDialog(QDialog):
         grid_row = grid_add_label_widget(gb_settings_l, 'Объем обучающей выборки', self.spin_train_size,
                               grid_row)
 
-        #Number of predictions
-        self.spin_predictions_num = QSpinBox()
-        self.spin_predictions_num.setMinimum(1)
-        grid_add_label_widget(gb_settings_l, 'Количество прогнозируемых значений', self.spin_predictions_num,
-                              grid_row)
+        self.combo_optimizer = QComboBox()
+        self.combo_optimizer.addItem("sgd")
+        self.combo_optimizer.addItem("adam")
+        grid_add_label_widget(gb_settings_l, 'Метод оптимизации', self.combo_optimizer, grid_row)
+
 
         ##NN report settings
         gb_report = QGroupBox('Отчет о работе сети')
@@ -118,9 +126,9 @@ class NeuralNetworkDialog(QDialog):
         self.chart_view = ChartView(True) #No margins enabled
         self.chart_view.setFixedSize(450, 330)
         self.chart_view.x_name = "Повтор"
-        self.chart_view.y_name = "Среднеквадратичное отклонение"
+        self.chart_view.y_name = "RMSE"
         self.chart_view.x_tick_num = 10
-        self.chart_view.y_tick_num = 10
+        self.chart_view.y_tick_num = 5
         self.chart_view.x_label_angle = 0
         self.chart_view.y_label_angle = 0
         self.chart_view.x_min = 1
@@ -128,8 +136,9 @@ class NeuralNetworkDialog(QDialog):
         self.chart_view.build_plot(None, None)
 
         self.predictions_table = QTableWidget(self)
-        self.predictions_table.setColumnCount(2)
-        self.predictions_table.setHorizontalHeaderLabels(['RMSE', 'Предсказанные значения'])
+        self.predictions_table.setColumnCount(3)
+        self.predictions_table.setColumnWidth(1, 200)
+        self.predictions_table.setHorizontalHeaderLabels(['RMSE', 'Predict', 'Time'])
         self.predictions_table.horizontalHeader().setStretchLastSection(True)
         self.predictions_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.predictions_table.cellDoubleClicked.connect(self.predictions_build_plot)
@@ -140,7 +149,7 @@ class NeuralNetworkDialog(QDialog):
         main_layout.addWidget(gb_settings, 1, 0)
         main_layout.addWidget(gb_report, 2, 0)
         main_layout.addWidget(self.chart_view, 0, 1)
-        main_layout.addWidget(self.predictions_table, 1, 1)
+        main_layout.addWidget(self.predictions_table, 1, 1, 2, 1)
         main_layout.addLayout(buttons_layout, 3, 0, 1, 2)
         self.setLayout(main_layout)
 
@@ -162,15 +171,9 @@ class NeuralNetworkDialog(QDialog):
                              self.spin_repeat_num.value(),
                              self.spin_epoch_num.value(),
                              self.spin_batch_size.value(),
-                             self.spin_neuron_num.value())
-        elif self.rb_mode_window.isChecked():
-            nn = NMultiWindowMode(self.data_analyzer.data,
-                             self.spin_predictions_num.value(),
-                             self.spin_repeat_num.value(),
-                             self.spin_epoch_num.value(),
-                             self.spin_batch_size.value(),
                              self.spin_neuron_num.value(),
-                             1)
+                             self.spin_layers_num.value(),
+                             self.combo_optimizer.currentText())
         else:
             nn = NMultiStep(self.data_analyzer.data,
                             self.spin_train_size.value(),
@@ -191,7 +194,7 @@ class NeuralNetworkDialog(QDialog):
         QGuiApplication.setOverrideCursor(Qt.WaitCursor)
         if self.nn_teacher:
             self.nn_teacher.tterminate()
-            if self.nn_teacher.wait(5000):
+            if self.nn_teacher.wait(10000):
                 QGuiApplication.setOverrideCursor(Qt.ArrowCursor)
                 self.set_cbuttons_state(True)
                 self.set_spins_state(True)
@@ -227,8 +230,10 @@ class NeuralNetworkDialog(QDialog):
                                   else 'NaN')
 
         p_item = QTableWidgetItem(predictions_str)
+        t_item = QTableWidgetItem(str(round(predictions.train_time, 1)))
         self.predictions_table.setItem(row_num, 0, r_item)
         self.predictions_table.setItem(row_num, 1, p_item)
+        self.predictions_table.setItem(row_num, 2, t_item)
 
     def predictions_build_plot(self, row, column):
         predictions = list()
@@ -244,6 +249,9 @@ class NeuralNetworkDialog(QDialog):
         predictions_form.exec()
 
     def teaching_complete(self):
+        average_rmse = sum(pred.rmse for pred in self.predictions) / len(self.predictions)
+        show_msgbox('Average RMSE: ' + str(average_rmse))
+
         self.set_cbuttons_state(True)
         self.set_spins_state(True)
 
@@ -253,7 +261,8 @@ class NeuralNetworkDialog(QDialog):
         self.spin_epoch_num.setEnabled(state)
         self.spin_repeat_num.setEnabled(state)
         self.spin_train_size.setEnabled(state)
-        self.spin_predictions_num.setEnabled(state)
+        self.spin_layers_num.setEnabled(state)
+        self.combo_optimizer.setEnabled(state)
 
     def clean_report(self):
         self.r_current_epoch.setText('0')
