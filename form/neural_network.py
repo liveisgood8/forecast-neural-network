@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 
 from PyQt5.Qt import *
 
@@ -15,7 +16,7 @@ class NeuralNetworkDialog(QDialog):
     def __init__(self, data_analyzer: DataAnalyzer, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Окно настройки нейронной сети')
-        self.setFixedSize(900, 600)
+        self.setFixedSize(900, 650)
 
         self.future_prediction = False
         self.data_analyzer = data_analyzer
@@ -85,6 +86,18 @@ class NeuralNetworkDialog(QDialog):
         grid_row = grid_add_label_widget(gb_settings_l, 'Объем обучающей выборки', self.spin_train_size,
                               grid_row)
 
+        #Size of input vector
+        self.spin_input_vec_size = QSpinBox()
+        self.spin_input_vec_size.setMinimum(1)
+        grid_row = grid_add_label_widget(gb_settings_l, 'Размерность входного вектора', self.spin_input_vec_size,
+                              grid_row)
+
+        #Size of output vector
+        self.spin_output_vec_size = QSpinBox()
+        self.spin_output_vec_size.setMinimum(1)
+        grid_row = grid_add_label_widget(gb_settings_l, 'Размерность выходного вектора', self.spin_output_vec_size,
+                              grid_row)
+
         self.combo_optimizer = QComboBox()
         self.combo_optimizer.addItem("sgd")
         self.combo_optimizer.addItem("adam")
@@ -143,13 +156,23 @@ class NeuralNetworkDialog(QDialog):
         self.predictions_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.predictions_table.cellDoubleClicked.connect(self.predictions_build_plot)
 
+        gb_rmse_report = QGroupBox('Отчет об RMSE')
+        gb_rmse_layout = QHBoxLayout()
+        gb_rmse_report.setLayout(gb_rmse_layout)
+
+        lb_rmse_titile = QLabel('Среднее RMSE:')
+        self.avg_rmse_value = QLabel()
+        gb_rmse_layout.addWidget(lb_rmse_titile)
+        gb_rmse_layout.addWidget(self.avg_rmse_value)
+
         #Main layout
         main_layout = QGridLayout()
         main_layout.addWidget(gb_mode, 0, 0)
         main_layout.addWidget(gb_settings, 1, 0)
         main_layout.addWidget(gb_report, 2, 0)
         main_layout.addWidget(self.chart_view, 0, 1)
-        main_layout.addWidget(self.predictions_table, 1, 1, 2, 1)
+        main_layout.addWidget(self.predictions_table, 1, 1)
+        main_layout.addWidget(gb_rmse_report, 2, 1)
         main_layout.addLayout(buttons_layout, 3, 0, 1, 2)
         self.setLayout(main_layout)
 
@@ -179,10 +202,12 @@ class NeuralNetworkDialog(QDialog):
                             self.spin_train_size.value(),
                             self.spin_repeat_num.value(),
                             self.spin_epoch_num.value(),
-                            1,
-                            1,
-                            1,
-                            self.spin_neuron_num.value())
+                            self.spin_input_vec_size.value(),
+                            self.spin_output_vec_size.value(),
+                            self.spin_batch_size.value(),
+                            self.spin_neuron_num.value(),
+                            self.spin_layers_num.value(),
+                            self.combo_optimizer.currentText())
 
         self.nn_teacher = NeuralNetworkTeacher(nn, self)
         self.nn_teacher.signal_epoch.connect(self.increment_epoch)
@@ -209,8 +234,8 @@ class NeuralNetworkDialog(QDialog):
         self.r_current_repeat.setText(str(count + 1))
 
         if not self.future_prediction:
-            self.chart_view.series_append(count + 1, predictions.rmse, 1, self.get_min_rmse(),
-                                          True, predictions.rmse > self.get_max_rmse())
+            self.chart_view.series_append(count + 1, predictions.rmse[0], 1, self.get_min_rmse(),
+                                          True, predictions.rmse[0] > self.get_max_rmse())
         self.predictions.append(predictions)
 
         #Add result in prediction_table
@@ -224,11 +249,9 @@ class NeuralNetworkDialog(QDialog):
 
         self.predictions_table.insertRow(row_num)
 
-        r_item = QTableWidgetItem(str(round(predictions.rmse, 4))
-                                  if predictions.rmse != NSingleStep.RMSE_ABORTED_VALUE and
-                                     predictions.rmse != NMultiWindowMode.RMSE_SKIP
-                                  else 'NaN')
+        rmse_str = ', '.join(str(round(e, 4)) for e in predictions.rmse)
 
+        r_item = QTableWidgetItem(rmse_str)
         p_item = QTableWidgetItem(predictions_str)
         t_item = QTableWidgetItem(str(round(predictions.train_time, 1)))
         self.predictions_table.setItem(row_num, 0, r_item)
@@ -249,8 +272,15 @@ class NeuralNetworkDialog(QDialog):
         predictions_form.exec()
 
     def teaching_complete(self):
-        average_rmse = sum(pred.rmse for pred in self.predictions) / len(self.predictions)
-        show_msgbox('Average RMSE: ' + str(average_rmse))
+        rmse_matrix = list()
+        for pred in self.predictions:
+            rmse_matrix.append(pred.rmse)
+
+        rmse_matrix = np.array(rmse_matrix)
+        avg_rmse = rmse_matrix.mean(axis=0)
+
+        avg_rmse_str = ', '.join(str(round(avg_rm, 4)) for avg_rm in avg_rmse)
+        self.avg_rmse_value.setText(avg_rmse_str)
 
         self.set_cbuttons_state(True)
         self.set_spins_state(True)
@@ -261,6 +291,8 @@ class NeuralNetworkDialog(QDialog):
         self.spin_epoch_num.setEnabled(state)
         self.spin_repeat_num.setEnabled(state)
         self.spin_train_size.setEnabled(state)
+        self.spin_input_vec_size.setEnabled(state)
+        self.spin_output_vec_size.setEnabled(state)
         self.spin_layers_num.setEnabled(state)
         self.combo_optimizer.setEnabled(state)
 
@@ -277,9 +309,9 @@ class NeuralNetworkDialog(QDialog):
 
     def get_max_rmse(self):
         max_rmse = 0
-        for elem in self.predictions:
-            if elem.rmse > max_rmse:
-                max_rmse = elem.rmse
+        for pred in self.predictions:
+            if pred.rmse[0] > max_rmse:
+                max_rmse = pred.rmse[0]
 
         return max_rmse
 
@@ -288,9 +320,9 @@ class NeuralNetworkDialog(QDialog):
             return 0
 
         min_rmse = sys.float_info.max
-        for elem in self.predictions:
-            if elem.rmse < min_rmse:
-                min_rmse = elem.rmse
+        for pred in self.predictions:
+            if pred.rmse[0] < min_rmse:
+                min_rmse = pred.rmse[0]
 
         return min_rmse
 

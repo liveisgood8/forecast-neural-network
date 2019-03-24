@@ -124,7 +124,7 @@ class EarlyStoppingByLossVal(Callback):
 
 class INetwork:
     __metaclass__ = ABCMeta
-    RMSE_ABORTED_VALUE = -1
+    RMSE_ABORTED_VALUE = list()
 
     def __init__(self, data, repeats, epoch, batch_size, lstm_neurons, lstm_layers, optimizer):
         self.repeats = repeats
@@ -156,31 +156,8 @@ class INetwork:
 
         return model
 
-    # fit an LSTM network to training data
-    def fit_lstm(self, iteration_callback):
-        X, y = self.train_scaled[:, 0:-1], self.train_scaled[:, -1]
-        X = X.reshape(X.shape[0], 1, X.shape[1])
-
-        check_point = ModelCheckpoint(filepath='model-{epoch:03d}.h5', monitor='val_loss', verbose=1, mode='min',
-                                      save_best_only=True, period=50)
-
-        train_timer = TimeHistory()
-
-        model = self.make_model(self.batch_size, X.shape[1], X.shape[2])
-        model.compile(loss='mean_squared_error', optimizer=self.optimizer)
-        model.fit(X, y, epochs=self.epoch, batch_size=self.batch_size, verbose=1, shuffle=False,
-                  callbacks=[check_point, train_timer])
-
-        #Для разных batch_size при обучении и предсказании
-        predict_model = self.make_model(1, X.shape[1], X.shape[2])
-
-        old_weights = model.get_weights()
-        predict_model.set_weights(old_weights)
-        predict_model.compile(loss='mean_squared_error', optimizer=self.optimizer)
-
-        # model = load_model('model-200.h5')
-
-        return predict_model, train_timer.get_time_delta()
+    @abstractmethod
+    def fit_lstm(self, iteration_callback): raise NotImplementedError
 
     def make_multi_predictions(self, repeat_iterator_callback, epoch_iterator_callback):
         for i in range(self.repeats):
@@ -229,7 +206,7 @@ class NSingleStep(INetwork):
 
         # Callbacks
         # early_stop = EarlyStoppingByLossVal(monitor='val_loss', value=0.05, verbose=1)
-        # early_stop = EarlyStopping(monitor='val_loss', patience=150, min_delta=0.1, verbose=1)
+        early_stop = EarlyStopping(monitor='val_loss', patience=10,  verbose=1)
         # check_point = ModelCheckpoint(filepath='model-{epoch:03d}.h5', monitor='val_loss', verbose=1, mode='min',
         #                               save_best_only=True, period=50)
 
@@ -239,7 +216,7 @@ class NSingleStep(INetwork):
         model = self.make_model(self.batch_size, X.shape[1], X.shape[2])
         model.compile(loss='mean_squared_error', optimizer=self.optimizer)
         model.fit(X, y, epochs=self.epoch, batch_size=self.batch_size, verbose=0, shuffle=False,
-                  callbacks=[train_timer, self.gui_controller],
+                  callbacks=[train_timer, self.gui_controller, early_stop],
                   validation_data=(Xt, yt))
 
         #Для разных batch_size при обучении и предсказании
@@ -270,7 +247,8 @@ class NSingleStep(INetwork):
 
         if not self.gui_controller.terminate:
             # report performance
-            rmse = sqrt(mean_squared_error(self.raw_values[self.train_size:], predictions))
+            rmse = list()
+            rmse.append(sqrt(mean_squared_error(self.raw_values[self.train_size:], predictions)))
             return predictions, rmse
         else:
             return predictions, self.RMSE_ABORTED_VALUE

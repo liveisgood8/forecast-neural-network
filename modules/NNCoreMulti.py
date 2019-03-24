@@ -1,18 +1,15 @@
 from pandas import DataFrame
-from pandas import Series
 from pandas import concat
-from pandas import read_csv
-from pandas import datetime
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import LSTM
+from keras.layers import LSTM, Dense, Dropout
+from keras.callbacks import EarlyStopping
 from math import sqrt
-from matplotlib import pyplot
 from numpy import array
 
-from modules.NNCore import INetwork
+from modules.NNCore import INetwork, TimeHistory
+
 
 # convert time series into supervised learning problem
 def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
@@ -38,13 +35,6 @@ def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
 		agg.dropna(inplace=True)
 	return agg
 
-# create a differenced series
-def difference(dataset, interval=1):
-	diff = list()
-	for i in range(interval, len(dataset)):
-		value = dataset[i] - dataset[i - interval]
-		diff.append(value)
-	return Series(diff)
 
 # make one forecast with an LSTM,
 def forecast_lstm(model, X, n_batch):
@@ -55,22 +45,10 @@ def forecast_lstm(model, X, n_batch):
 	# convert to array
 	return [x for x in forecast[0, :]]
 
-# invert differenced forecast
-def inverse_difference(last_ob, forecast):
-	# invert first forecast
-	inverted = list()
-	inverted.append(forecast[0] + last_ob)
-	# propagate difference forecast using inverted first value
-	for i in range(1, len(forecast)):
-		inverted.append(forecast[i] + inverted[i-1])
-	return inverted
 
 # inverse data transform on forecasts
-def inverse_transform(series, forecasts, scaler, n_test):
+def inverse_transform(forecasts, scaler):
 	inverted = list()
-	print('fc_len: ', len(forecasts))
-	print('series_len: ', len(series))
-	print('n_test: ', n_test)
 
 	for i in range(len(forecasts)):
 		# create array from forecast
@@ -79,31 +57,14 @@ def inverse_transform(series, forecasts, scaler, n_test):
 		# invert scaling
 		inv_scale = scaler.inverse_transform(forecast)
 		inv_scale = inv_scale[0, :]
-		# invert differencing
-		index = len(series) - n_test + i - 1
-		last_ob = series[index]
-		inv_diff = inverse_difference(last_ob, inv_scale)
 		# store
-		inverted.append(inv_diff)
+		inverted.append(inv_scale)
 	return inverted
 
-# plot the forecasts in the context of the original dataset
-def plot_forecasts(series, forecasts, n_test):
-	# plot the entire dataset in blue
-	pyplot.plot(series)
-	# plot the forecasts in red
-	for i in range(len(forecasts)):
-		off_s = len(series) - n_test + i - 1
-		off_e = off_s + len(forecasts[i]) + 1
-		xaxis = [x for x in range(off_s, off_e)]
-		yaxis = [series[off_s]] + forecasts[i]
-		pyplot.plot(xaxis, yaxis, color='red')
-	# show the plot
-	pyplot.show()
 
 class NMultiStep(INetwork):
-	def __init__(self, data, train_size, repeats, epoch, lag_size, seq_size, batch_size, lstm_neurons):
-		super().__init__(data, repeats, epoch, batch_size, lstm_neurons)
+	def __init__(self, data, train_size, repeats, epoch, lag_size, seq_size, batch_size, lstm_neurons, lstm_layer, optimizer):
+		super().__init__(data, repeats, epoch, batch_size, lstm_neurons, lstm_layer, optimizer)
 
 		self.train_size = train_size
 		self.lag_size = lag_size
@@ -112,39 +73,55 @@ class NMultiStep(INetwork):
 
 		self.prepare_data()
 
+	def make_model(self, batch_size, inp_shape_dim, inp_shape_ddim, output_shape_dim=1):
+		model = Sequential()
+
+		for i in range(self.lstm_layers - 1):
+			model.add(LSTM(self.lstm_neurons, batch_input_shape=(batch_size, inp_shape_dim, inp_shape_ddim),
+							stateful=True, return_sequences=True))
+			model.add(Dropout(0.2))
+
+		model.add(LSTM(self.lstm_neurons, batch_input_shape=(batch_size, inp_shape_dim, inp_shape_ddim), stateful=True))
+		model.add(Dropout(0.2))
+		model.add(Dense(output_shape_dim))
+
+		return model
+
 	def fit_lstm(self, iteration_callback):
 		# reshape training into [samples, timesteps, features]
 		X, y = self.train_scaled[:, 0:self.lag_size], self.train_scaled[:, self.lag_size:]
 		X = X.reshape(X.shape[0], 1, X.shape[1])
-		# design network
-		model = Sequential()
-		model.add(LSTM(self.lstm_neurons, batch_input_shape=(self.batch_size, X.shape[1], X.shape[2]), stateful=True))
-		model.add(Dense(y.shape[1]))
-		model.compile(loss='mean_squared_error', optimizer='adam')
-		# fit network
-		for i in range(self.epoch):
-			if self.m_terminate:
-				break
 
-			model.fit(X, y, epochs=1, batch_size=self.batch_size, verbose=0, shuffle=False)
-			model.reset_states()
+		Xt, yt = self.test_scaled[:, 0:self.lag_size], self.test_scaled[:, self.lag_size:]
+		Xt = Xt.reshape(Xt.shape[0], 1, Xt.shape[1])
 
-			if iteration_callback:
-				iteration_callback(i)
-		return model
+		early_stop = EarlyStopping(monitor='val_loss', patience=10, verbose=1)
+		train_timer = TimeHistory()
+		self.gui_controller.callback_func = iteration_callback
+
+		model = self.make_model(self.batch_size, X.shape[1], X.shape[2], y.shape[1])
+		model.compile(loss='mean_squared_error', optimizer=self.optimizer)
+		model.fit(X, y, epochs=self.epoch, batch_size=self.batch_size, verbose=0, shuffle=False,
+				  callbacks=[train_timer, self.gui_controller, early_stop],
+				  validation_data=(Xt, yt))
+
+		# Для разных batch_size при обучении и предсказании
+		predict_model = self.make_model(1, X.shape[1], X.shape[2], y.shape[1])
+
+		old_weights = model.get_weights()
+		predict_model.set_weights(old_weights)
+		predict_model.compile(loss='mean_squared_error', optimizer=self.optimizer)
+
+		return predict_model, train_timer.get_time_delta()
 
 	def prepare_data(self):
-		# transform data to be stationary
-		diff_series = difference(self.raw_values, 1)
-		diff_values = diff_series.values
-		diff_values = diff_values.reshape(len(diff_values), 1)
+		data = array(self.raw_values)
+		values = data.reshape(len(data), 1)
 
 		# rescale values to -1, 1
 		self.scaler = MinMaxScaler(feature_range=(-1, 1))
-		scaled_values = self.scaler.fit_transform(diff_values)
+		scaled_values = self.scaler.fit_transform(values)
 		scaled_values = scaled_values.reshape(len(scaled_values), 1)
-
-		scaled_values = self.raw_values
 
 		# transform into supervised learning problem X, y
 		supervised = series_to_supervised(scaled_values, self.lag_size, self.seq_size)
@@ -156,7 +133,7 @@ class NMultiStep(INetwork):
 	def prediciotns_repeat(self, lstm_model):
 		forecasts = list()
 		for i in range(len(self.test_scaled)):
-			if self.m_terminate:
+			if self.gui_controller.terminate:
 				break
 
 			X, y = self.test_scaled[i, 0:self.lag_size], self.test_scaled[i, self.lag_size:]
@@ -167,26 +144,25 @@ class NMultiStep(INetwork):
 			# store the forecast
 			forecasts.append(forecast)
 
-		if not self.m_terminate:
+		if not self.gui_controller.terminate:
 			# report performance
-			forecasts = inverse_transform(self.raw_values, forecasts, self.scaler, len(self.test_scaled) + 2)
-			rmse = self.evaluate_forecasts(forecasts)
+			forecasts = inverse_transform(forecasts, self.scaler)
+			rmse_values = self.evaluate_forecasts(forecasts)
 
-			# plot_forecasts(self.raw_values, forecasts, len(self.test_scaled))
-
-			return forecasts, rmse
+			return forecasts, rmse_values
 		else:
 			return forecasts, self.RMSE_ABORTED_VALUE
 
 	# evaluate the RMSE for each forecast time step
 	def evaluate_forecasts(self, forecasts):
+		rmse_values = list()
+
 		test_pack = [row[self.lag_size:] for row in self.test_scaled]
-		test_pack = inverse_transform(self.raw_values, test_pack, self.scaler, len(self.test_scaled) + 2)
+		test_pack = inverse_transform(test_pack, self.scaler)
 
 		for i in range(self.seq_size):
 			actual = [row[i] for row in test_pack]
 			predicted = [forecast[i] for forecast in forecasts]
-			rmse = sqrt(mean_squared_error(actual, predicted))
-			print('RMSE: ', rmse)
+			rmse_values.append(sqrt(mean_squared_error(actual, predicted)))
 
-		return 1
+		return rmse_values
