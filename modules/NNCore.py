@@ -206,7 +206,7 @@ class NSingleStep(INetwork):
 
         # Callbacks
         # early_stop = EarlyStoppingByLossVal(monitor='val_loss', value=0.05, verbose=1)
-        early_stop = EarlyStopping(monitor='val_loss', patience=10,  verbose=1)
+        # early_stop = EarlyStopping(monitor='val_loss', patience=10,  verbose=1)
         # check_point = ModelCheckpoint(filepath='model-{epoch:03d}.h5', monitor='val_loss', verbose=1, mode='min',
         #                               save_best_only=True, period=50)
 
@@ -216,7 +216,7 @@ class NSingleStep(INetwork):
         model = self.make_model(self.batch_size, X.shape[1], X.shape[2])
         model.compile(loss='mean_squared_error', optimizer=self.optimizer)
         model.fit(X, y, epochs=self.epoch, batch_size=self.batch_size, verbose=0, shuffle=False,
-                  callbacks=[train_timer, self.gui_controller, early_stop],
+                  callbacks=[train_timer, self.gui_controller],
                   validation_data=(Xt, yt))
 
         #Для разных batch_size при обучении и предсказании
