@@ -137,7 +137,7 @@ class NeuralNetworkDialog(QDialog):
 
         ##NN Report controls
         self.chart_view = ChartView(True) #No margins enabled
-        self.chart_view.setFixedSize(450, 330)
+        self.chart_view.setFixedSize(450, 250)
         self.chart_view.x_name = "Повтор"
         self.chart_view.y_name = "RMSE"
         self.chart_view.x_tick_num = 10
