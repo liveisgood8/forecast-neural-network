@@ -9,6 +9,7 @@ from keras.layers import LSTM
 from keras.layers import Dropout
 from keras.models import load_model
 from keras.callbacks import *
+from keras.utils import plot_model
 from keras import backend as KerasBackend
 from math import sqrt
 from abc import ABCMeta, abstractmethod
@@ -30,13 +31,14 @@ def make_scaler():
     scaler = MinMaxScaler(feature_range=(-1, 1))
     return scaler
 
-def scale_data(scaler, data):
+def scale(data):
+    # fit scaler
+    scaler = MinMaxScaler(feature_range=(-1, 1))
     scaler = scaler.fit(data)
-
-    # transform
+    # transform train
     data = data.reshape(data.shape[0], data.shape[1])
     data_scaled = scaler.transform(data)
-    return data_scaled
+    return scaler, data_scaled
 
 def scale_all(train, test):
     # fit scaler
@@ -105,23 +107,6 @@ class GuiController(Callback):
         self.epoch_num = 0
 
 
-class EarlyStoppingByLossVal(Callback):
-    def __init__(self, monitor='val_loss', value=0.00001, verbose=0):
-        super(Callback, self).__init__()
-        self.monitor = monitor
-        self.value = value
-        self.verbose = verbose
-
-    def on_epoch_end(self, epoch, logs={}):
-        current = logs.get(self.monitor)
-        if current is None:
-            warnings.warn("Early stopping requires %s available!" % self.monitor, RuntimeWarning)
-
-        if current < self.value:
-            if self.verbose > 0:
-                print("Epoch %05d: early stopping THR" % epoch)
-            self.model.stop_training = True
-
 class INetwork:
     __metaclass__ = ABCMeta
     RMSE_ABORTED_VALUE = list()
@@ -154,10 +139,9 @@ class INetwork:
         model.add(Dropout(0.2))
         model.add(Dense(1))
 
-        return model
+        plot_model(model, to_file='model_single.png', show_layer_names=True, show_shapes=True)
 
-    @abstractmethod
-    def fit_lstm(self, iteration_callback): raise NotImplementedError
+        return model
 
     def make_multi_predictions(self, repeat_iterator_callback, epoch_iterator_callback):
         for i in range(self.repeats):
@@ -167,6 +151,9 @@ class INetwork:
             predictions.train_time = train_time
             predictions.values, predictions.rmse = self.prediciotns_repeat(model)
             repeat_iterator_callback(i, predictions)
+
+    @abstractmethod
+    def fit_lstm(self, iteration_callback): raise NotImplementedError
 
     @abstractmethod
     def prediciotns_repeat(self, lstm_model): raise NotImplementedError
@@ -245,10 +232,18 @@ class NSingleStep(INetwork):
             # store forecast
             predictions.append(yhat)
 
+        rmse_value = sqrt(mean_squared_error(self.raw_values[self.train_size:], predictions))
+
+        ## Lets make one-step prediction in future
+        X = self.test_scaled[-1:, -1]
+        yhat = forecast_lstm(lstm_model, 1, X)
+        yhat = invert_scale(self.scaler, X, yhat)
+        predictions.append(yhat)
+
         if not self.gui_controller.terminate:
             # report performance
             rmse = list()
-            rmse.append(sqrt(mean_squared_error(self.raw_values[self.train_size:], predictions)))
+            rmse.append(rmse_value)
             return predictions, rmse
         else:
             return predictions, self.RMSE_ABORTED_VALUE
@@ -256,52 +251,75 @@ class NSingleStep(INetwork):
 
 class NMultiWindowMode(INetwork):
     #TODO Доделать оконный метод
-    RMSE_SKIP = -2
 
-    def __init__(self, data, predictions_num, repeats, epoch, batch_size, lstm_neurons, window_size):
-        super().__init__(data, repeats, epoch, batch_size, lstm_neurons)
+    def __init__(self, data, start_position, repeats, epoch, batch_size,
+                 lstm_neurons, lstm_layers, optimizer, window_size):
+        super().__init__(data, repeats, epoch, batch_size, lstm_neurons, lstm_layers, optimizer)
 
-        self.predictions_num = predictions_num
         self.test_scaled = list()
         self.window_size = window_size
-        # self.raw_values_window = self.raw_values[len(self.raw_values) - self.window_size:]
-        self.raw_values_window = self.raw_values
+        self.start_position = start_position
+        self.train_data_x = None
+        self.train_data_y = None
+        self.test_data_x = None
+        self.test_data_y = None
 
         self.prepare_data()
 
     def prepare_data(self):
-        # transform data to be stationary
-        diff_values = difference(self.raw_values_window, 1)
+        self.scaler = MinMaxScaler(feature_range=(-1, 1))
 
-        # transform data to be supervised learning
-        supervised = timeseries_to_supervised(diff_values, 1)
-        supervised_values = supervised.values
+        np_array = numpy.array(self.raw_values).reshape(len(self.raw_values), 1)
 
-        self.train = supervised_values[0:1]
-        self.train_scaled = scale(self.scaler, self.train)
+        data_scaled = self.scaler.fit_transform(np_array)
+        data_scaled = data_scaled.reshape(len(data_scaled))
+        # data_scaled = self.raw_values
+
+        train_data_raw = data_scaled[0:self.start_position]
+        test_data_raw = data_scaled[self.start_position:]
+
+        self.train_data_x, self.train_data_y = self.create_dataset(train_data_raw)
+
+        self.test_data_x, self.test_data_y = self.create_dataset(test_data_raw)
 
     def prediciotns_repeat(self, lstm_model):
         # walk-forward validation on the test data
-        predictions = list()
+        predictions_scaled = lstm_model.predict(self.test_data_x)
+        predictions = self.scaler.inverse_transform(predictions_scaled)
+        predictions = predictions.reshape(len(predictions))
+        # predictions = predictions_scaled
 
-        for i in range(self.predictions_num):
-            if self.gui_controller.terminate:
-                break
+        if not self.gui_controller.terminate:
+            # report performance
+            rmse = list()
+            rmse.append(sqrt(mean_squared_error(self.raw_values[self.start_position + self.window_size + 1:],
+                                                predictions)))
+            return predictions, rmse
+        else:
+            return predictions, self.RMSE_ABORTED_VALUE
 
-            prev_row_value = self.raw_values_window[-1]
-            prev_value = self.train_scaled[-1, 0:-1]
+    def fit_lstm(self, iteration_callback):
+        train_timer = TimeHistory()
+        self.gui_controller.callback_func = iteration_callback
 
-            yhat = forecast_lstm(lstm_model, 1, prev_value)
-            yhat = invert_scale(self.scaler, prev_value, yhat)
-            yhat_converted = self.inverse_difference_byprev(prev_row_value, yhat)
-            predictions.append(yhat_converted)
+        model = Sequential()
+        model.add(Dense(12, input_dim=self.window_size, activation='relu'))
+        model.add(Dense(8, activation='relu'))
+        model.add(Dense(1))
+        model.compile(loss='mean_squared_error', optimizer=self.optimizer)
+        model.fit(self.train_data_x, self.train_data_y, epochs=self.epoch, batch_size=self.batch_size, verbose=2,
+                  callbacks=[train_timer, self.gui_controller])
 
-            self.raw_values_window = self.raw_values_window[1:]
-            self.raw_values_window.append(yhat_converted)
-            self.prepare_data()
-            lstm_model = self.fit_lstm(None)
+        return model, train_timer.get_time_delta()
 
-        return predictions, self.RMSE_SKIP
+    # convert an array of values into a dataset matrix
+    def create_dataset(self, dataset):
+        dataX, dataY = [], []
+        for i in range(len(dataset) - self.window_size - 1):
+            a = dataset[i:(i + self.window_size)]
+            dataX.append(a)
+            dataY.append(dataset[i + self.window_size])
+        return numpy.array(dataX), numpy.array(dataY)
 
 
 class NeuralNetworkTeacher(QtCore.QThread):

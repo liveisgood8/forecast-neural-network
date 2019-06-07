@@ -13,6 +13,7 @@ class DataParser:
         self.rus_param_name = rus_param_name
         self.station = station
         self.detector = detector
+        self.time_format = 'yyyy-MM-dd HH:mm:ss'
         self.__parsed_data = parsed_data
 
         self.selected_column = None
@@ -91,17 +92,17 @@ class DataParser:
             file.write(self.detector + '\n')
 
 
-def convert_str_to_qdatetime(column_values):
+def convert_str_to_qdatetime(column_values, time_format):
     datetime_list = list()
     for elem in column_values:
-        datetime_list.append(QDateTime.fromString(elem[:-3], "yyyy-MM-dd HH:mm:ss"))
+        datetime_list.append(QDateTime.fromString(elem, time_format))
     return datetime_list
 
 
-def convert_qdatetime_to_str(column_values):
+def convert_qdatetime_to_str(column_values, time_format):
     datetime_list = list()
     for elem in column_values:
-        datetime_list.append(elem.toString("yyyy-MM-dd HH:mm:ss+07"))
+        datetime_list.append(elem.toString(time_format))
     return datetime_list
 
 
@@ -115,10 +116,11 @@ def read_description_file(filename):
             rus_param_name = temp[1]
             station = int(temp[2])
             detector = temp[3]
+            time_format = temp[4]
 
-        return True, param_name, rus_param_name, station, detector
+        return True, param_name, rus_param_name, station, detector, time_format
     else:
-        return False, '', '', -1, ''
+        return False, '', '', -1, '', ''
 
 
 def import_data(filename):
@@ -127,7 +129,7 @@ def import_data(filename):
     extension = os.path.splitext(filename)[1]
 
     if extension == '.csv' or extension == '.xls' or extension == '.xlsx':
-        descr_read_status, param_name, rus_param_name, station, detector = read_description_file(filename)
+        descr_read_status, param_name, rus_param_name, station, detector, time_format = read_description_file(filename)
         if descr_read_status:
 
             if extension == '.csv':
@@ -135,11 +137,11 @@ def import_data(filename):
             elif extension == '.xls' or extension == '.xlsx':
                 parsed_data = pandas.read_excel(filename, index_col=None)
 
-            parsed_data['Время измерения'] = convert_str_to_qdatetime(parsed_data['Время измерения'])
+            parsed_data['Время измерения'] = convert_str_to_qdatetime(parsed_data['Время измерения'], time_format)
         else:
             status = -2
 
-        return status, parsed_data, param_name, rus_param_name, station, detector
+        return status, parsed_data, param_name, rus_param_name, station, detector, time_format
     else:
         status = -1
         return status, None, None, None, None, None

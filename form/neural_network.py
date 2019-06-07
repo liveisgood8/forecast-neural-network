@@ -197,6 +197,16 @@ class NeuralNetworkDialog(QDialog):
                              self.spin_neuron_num.value(),
                              self.spin_layers_num.value(),
                              self.combo_optimizer.currentText())
+        elif self.rb_mode_window.isChecked():
+            nn = NMultiWindowMode(self.data_analyzer.data,
+                                  self.spin_train_size.value(),
+                                  self.spin_repeat_num.value(),
+                                  self.spin_epoch_num.value(),
+                                  self.spin_batch_size.value(),
+                                  self.spin_neuron_num.value(),
+                                  self.spin_layers_num.value(),
+                                  self.combo_optimizer.currentText(),
+                                  10)
         else:
             nn = NMultiStep(self.data_analyzer.data,
                             self.spin_train_size.value(),

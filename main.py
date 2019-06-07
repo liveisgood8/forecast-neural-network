@@ -111,13 +111,14 @@ class MApplication(QtWidgets.QMainWindow, form_design.Ui_MainWindow):
         if not fname:
             return
 
-        import_status, parsed_data, param_name, rus_param_name, station, detector = import_data(fname)
+        import_status, parsed_data, param_name, rus_param_name, station, detector, time_format = import_data(fname)
         if import_status == -1:
             helper.show_msgbox('Неподдерживаемый формат файла!')
         elif import_status == -2:
             helper.show_msgbox('Не найден файл описания!')
         elif import_status == 1:
             data_analyzer = DataAnalyzer(rus_param_name, param_name, station, detector, parsed_data)
+            data_analyzer.time_format = time_format
             graphic_wnd = GraphicWindow(data_analyzer, self)
             graphic_wnd.exec()
 

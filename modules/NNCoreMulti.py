@@ -5,6 +5,7 @@ from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
 from keras.callbacks import EarlyStopping
+from keras.utils import plot_model
 from math import sqrt
 from numpy import array
 
@@ -84,6 +85,8 @@ class NMultiStep(INetwork):
 		model.add(LSTM(self.lstm_neurons, batch_input_shape=(batch_size, inp_shape_dim, inp_shape_ddim), stateful=True))
 		model.add(Dropout(0.2))
 		model.add(Dense(output_shape_dim))
+
+		plot_model(model, to_file='model_multi.png', show_layer_names=True, show_shapes=True)
 
 		return model
 
